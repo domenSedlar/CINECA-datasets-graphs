@@ -1,5 +1,6 @@
 import redis
 import json
+import pandas as pd
 
 class IngestRedisQueue:
     def __init__(self, queue_name='data_buffer', host='localhost', port=6379, db=0):
@@ -7,9 +8,10 @@ class IngestRedisQueue:
         self.redis = redis.Redis(host=host, port=port, db=db)
 
     def push(self, data):
-        """Push a dict (as JSON) onto the queue."""
+        """Push a dict (as JSON) onto the queue. Converts pandas.Timestamp in 'timestamp' key to Unix integer."""
+        if 'timestamp' in data and isinstance(data['timestamp'], pd.Timestamp):
+            data['timestamp'] = int(data['timestamp'].timestamp())
         self.redis.lpush(self.queue_name, json.dumps(data))
-        logger.info(f"Pushed data to queue: {json.dumps(data)}")
 
     def pop(self, timeout=0):
         """Pop a dict (from JSON) from the queue. Blocks if empty. Returns None if timeout and nothing is found."""
