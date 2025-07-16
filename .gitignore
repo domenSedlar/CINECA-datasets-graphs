@@ -208,3 +208,6 @@ __marimo__/
 
 # Tar files
 TarFiles/
+
+# output graphs
+GraphCreation/output_graphs/
