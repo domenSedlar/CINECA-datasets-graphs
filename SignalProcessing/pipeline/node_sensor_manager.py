@@ -18,7 +18,7 @@ class NodeSensorManager:
     def _prepare_generators(self):
         import pyarrow.parquet as pq
         # Open the tar file (assume it's named '0.tar' and located at self.tar_path)
-        tar_file_path = f"{self.tar_path}/0.tar"
+        tar_file_path = f"{self.tar_path}"
         parquet_filename = f"{self.node_id}.parquet"
         with tarfile.open(tar_file_path, 'r') as tar:
             member = tar.getmember(parquet_filename)

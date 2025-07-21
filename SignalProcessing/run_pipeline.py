@@ -7,6 +7,14 @@ from pipeline.state_builder import StateBuilder
 from pipeline.persist import StatePersister
 from pipeline.node_sensor_manager import NodeSensorManager
 
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(levelname)s] %(filename)s: %(message)s",
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger("run_pipeline")
+
 # Simple in-memory FIFO queue for single-threaded use
 class SimpleQueue:
     def __init__(self):
@@ -18,26 +26,14 @@ class SimpleQueue:
             return self._queue.pop(0)
         return None
 
-def main():
-    tar_path = "./TarFiles/"
-    output_file = 'test_latest_state.json'
 
+def run_pipeline(node, tar_path, output_file):
     # Remove output file if exists
     if os.path.exists(output_file):
         os.remove(output_file)
 
     # Queues between pipeline stages
     change_queues = {}  # (node, sensor) -> SimpleQueue for each detector's output
-    import logging
-
-    # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="[%(levelname)s] %(filename)s: %(message)s",
-        handlers=[logging.StreamHandler()]
-    )
-    logger = logging.getLogger("run_pipeline")
-    node = 2
 
     detectors = {}      # (node, sensor) -> ChangeLevelDetector
     state_queue = SimpleQueue()
@@ -106,6 +102,40 @@ def main():
     logger.info("StatePersister finished")
 
     print(f"Pipeline complete. Output written to {output_file}")
+
+def main():
+    logger.info("Starting pipeline")
+    import tarfile
+    tar_dir = "./TarFiles/"
+    output_dir = "./outputs/"
+    os.makedirs(output_dir, exist_ok=True)
+
+    # List all tar files in the directory
+    for tar_filename in os.listdir(tar_dir):
+
+        if not tar_filename.endswith('.tar'):
+            continue
+        if '-' in tar_filename:
+            continue
+        tar_path = os.path.join(tar_dir, tar_filename)
+        try:
+            with tarfile.open(tar_path, 'r') as tar:
+                # List all .parquet files in the tar
+                for member in tar.getmembers():
+                    if member.isfile() and member.name.endswith('.parquet'):
+                        # Extract node_id from filename (e.g., '23.parquet' -> 23)
+                        base = os.path.basename(member.name)
+                        node_id_str = base.split('.')[0]
+                        try:
+                            node_id = int(node_id_str)
+                        except ValueError:
+                            logger.info(f"Skipping file with invalid node_id: {base}")
+                            continue
+                        # Unique output file per node/tar
+                        output_file = os.path.join(output_dir, f"{os.path.splitext(tar_filename)[0]}_node{node_id}_state.json")
+                        run_pipeline(node_id, tar_path, output_file)
+        except Exception as e:
+            logger.error(f"Error processing tar file {tar_path}: {e}")
 
 if __name__ == "__main__":
     main() 
