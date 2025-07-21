@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import timedelta
 
 class NodeSensorManager:
-    def __init__(self, node_id, tar_path, timestamp_col='timestamp', interval_seconds=60*15):
+    def __init__(self, node_id, tar_path, timestamp_col='timestamp', interval_seconds=60*15): # manages sensor data for a single node
         self.node_id = node_id
         self.tar_path = tar_path
         self.timestamp_col = timestamp_col
@@ -17,7 +17,7 @@ class NodeSensorManager:
 
     def _prepare_generators(self):
         import pyarrow.parquet as pq
-        # Open the tar file (assume it's named '0.tar' and located at self.tar_path)
+        # Open the tar file (assume it's named '{node_id}.tar' and located at self.tar_path)
         tar_file_path = f"{self.tar_path}"
         parquet_filename = f"{self.node_id}.parquet"
         with tarfile.open(tar_file_path, 'r') as tar:
@@ -28,7 +28,7 @@ class NodeSensorManager:
         # Use pyarrow to read the parquet file from bytes
         table = pq.ParquetFile(io.BytesIO(parquet_bytes))
 
-        # Determine the first 3 sensor columns (excluding timestamp)
+        # Determine the first 3 sensor columns (excluding timestamp) - for testing we limit to only 3 columns so it runs faster, will be removed soon
         all_columns = table.schema.names
         sensor_columns = [col for col in all_columns if col != self.timestamp_col][:3]
         self._sensor_columns = sensor_columns
@@ -39,12 +39,12 @@ class NodeSensorManager:
                 for _, row in batch_df.iterrows():
                     yield row
 
-        self.sensor_generator = row_generator()
+        self.sensor_generator = row_generator() # reads the data when called
         self.current_time = None
         self.current_readings = None
         self._first_reading_yielded = False
 
-    def _sanitize_sensor_values(self, row):
+    def _sanitize_sensor_values(self, row): # if the value is None, use the last valid value from current_readings when it exists
         import math
         import pandas as pd
         sanitized = {}
@@ -92,12 +92,12 @@ class NodeSensorManager:
             next_time = next_row[self.timestamp_col]
             expected_next_time = self.current_time + self.interval
             allowed_next_time = expected_next_time + timedelta(seconds=allowed_offset_seconds)
-            if next_time > allowed_next_time:
+            if next_time > allowed_next_time: # if next reading is too far in the future, buffer the row for next interval
                 # Buffer the row for future calls
                 self._buffered_row = next_row
                 sensor_data = {k: None for k in self._sensor_columns}
                 self.current_time = expected_next_time
-                return {
+                return { # for now we return None, as we have no data for this interval
                     'timestamp': self.current_time,
                     'node': self.node_id,
                     'sensor_data': sensor_data

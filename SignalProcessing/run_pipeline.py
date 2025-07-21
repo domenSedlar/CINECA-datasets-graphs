@@ -121,7 +121,7 @@ def main():
         try:
             with tarfile.open(tar_path, 'r') as tar:
                 # List all .parquet files in the tar
-                for member in tar.getmembers():
+                for member in tar.getmembers(): # runs pipeline for each node in the tar file
                     if member.isfile() and member.name.endswith('.parquet'):
                         # Extract node_id from filename (e.g., '23.parquet' -> 23)
                         base = os.path.basename(member.name)

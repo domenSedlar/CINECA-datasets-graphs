@@ -2,7 +2,7 @@ import redis
 import json
 import pandas as pd
 
-class IngestRedisQueue:
+class IngestRedisQueue: # Cursor wanted to use this, but then it decided not to. We can use it later, when we decide to not store everything in python arrays
     def __init__(self, queue_name='data_buffer', host='localhost', port=6379, db=0):
         self.queue_name = queue_name
         self.redis = redis.Redis(host=host, port=port, db=db)

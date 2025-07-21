@@ -5,6 +5,8 @@ from common.logger import Logger
 
 logger = Logger(__name__)
 
+# This file is deprecated, we're using node_sensor_manager.py to read the data
+
 def read_tar_parquet(tar_path):
     """
     Yields each row (as a dict) from every .parquet file inside the tar archive.
