@@ -5,15 +5,18 @@ from collections import defaultdict
 from datetime import timedelta
 
 class NodeSensorManager:
-    def __init__(self, node_id, tar_path, timestamp_col='timestamp', interval_seconds=60*15): # manages sensor data for a single node
+    def __init__(self, node_id, tar_path, rack_id, current_time=None, timestamp_col='timestamp', interval_seconds=60*15): # manages sensor data for a single node
         self.node_id = node_id
         self.tar_path = tar_path
+        self.rack_id = rack_id
         self.timestamp_col = timestamp_col
         self.interval = timedelta(seconds=interval_seconds)
         self.sensor_generator = None
         self.current_readings = None
-        self.current_time = None
+        self.current_time = current_time - self.interval
         self._prepare_generators()
+        self._first_reading_yielded = False if current_time is None else True
+
 
     def _prepare_generators(self):
         import pyarrow.parquet as pq
@@ -40,9 +43,6 @@ class NodeSensorManager:
                     yield row
 
         self.sensor_generator = row_generator() # reads the data when called
-        self.current_time = None
-        self.current_readings = None
-        self._first_reading_yielded = False
 
     def _sanitize_sensor_values(self, row): # if the value is None, use the last valid value from current_readings when it exists
         import math
@@ -81,7 +81,7 @@ class NodeSensorManager:
                 self._first_reading_yielded = True
                 return {
                     'timestamp': self.current_time,
-                    'node': self.node_id,
+                    'rack_id': self.rack_id,
                     'sensor_data': self.current_readings.copy() if self.current_readings else None
                 }
             # Use buffered row if available, else get next from generator
@@ -99,7 +99,7 @@ class NodeSensorManager:
                 self.current_time = expected_next_time
                 return { # for now we return None, as we have no data for this interval
                     'timestamp': self.current_time,
-                    'node': self.node_id,
+                    'rack_id': self.rack_id,
                     'sensor_data': sensor_data
                 }
             else:
@@ -108,7 +108,7 @@ class NodeSensorManager:
                 self.current_readings = self._sanitize_sensor_values(next_row)
                 return {
                     'timestamp': self.current_time,
-                    'node': self.node_id,
+                    'rack_id': self.rack_id,
                     'sensor_data': self.current_readings.copy() if self.current_readings else None
                 }
         except StopIteration:
