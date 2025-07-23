@@ -17,7 +17,7 @@ def main():
         [{'timestamp': 100 + i, 'value': 10} for i in range(50)]
     )
     for row in test_data:
-        input_queue.push(row)
+        input_queue.put(row)
 
     # Run the change detector (non-blocking, will exit when input is empty)
     detector = ChangeLevelDetector(input_queue, output_queue, delta=0.1)

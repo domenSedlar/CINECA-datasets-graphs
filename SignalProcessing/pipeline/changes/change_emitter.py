@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     # Push the batch into the input queue
     for b in batch:
-        input_queue.push(b)
+        input_queue.put(b)
     # Import and run the detector
     detector = ChangeLevelDetector(input_queue, output_queue)
     detector.run(timeout=0)

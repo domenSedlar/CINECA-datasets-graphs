@@ -17,7 +17,7 @@ def main():
         {'node': 'B', 'timestamp': 12, 'value': 20},
     ]
     for row in test_data:
-        input_queue.push(row)
+        input_queue.put(row)
 
     # Run the state builder (non-blocking, will exit when input is empty)
     state_builder = StateBuilder(input_queue, output_queue)

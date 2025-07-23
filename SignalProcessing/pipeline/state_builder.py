@@ -1,4 +1,5 @@
 import logging
+import copy
 logger = logging.getLogger(__name__)
 
 class StateBuilder:
@@ -9,11 +10,12 @@ class StateBuilder:
 
     def run(self, timeout=0):
         while True:
-            data_list = self.input_queue.pop(timeout=timeout)
+            data_list = self.input_queue.get()
             if data_list is None:
-                logger.info(f"No data found in input queue")
+                self.output_queue.put(None)
+                logger.debug(f"No data found in input queue")
                 break
-            logger.info(f"Received batch of {len(data_list)} sensor updates")
+            logger.debug(f"Received batch of {len(data_list)} sensor updates")
             
             for sensor_data in data_list:
                 sensor = sensor_data.get('sensor')
@@ -21,19 +23,31 @@ class StateBuilder:
                 value = sensor_data.get('value')
                 timestamp = sensor_data.get('timestamp')
                 rack_id = sensor_data.get('rack_id')
-                if None in (sensor, node, value, timestamp, rack_id):
-                    logger.warning(f"Incomplete sensor data: {sensor_data}")
-                    continue
+
+                # If node is not in states, always create it and write the sensor value (even if value is None)
                 if node not in self.states:
                     self.states[node] = {
                         'timestamp': timestamp,
                         'rack_id': rack_id,
-                        'sensor_data': {}
+                        'sensor_data': {sensor: value}
                     }
-                # Always update timestamp and rack_id to the latest
+                    continue  # skip the rest, as we've already written the value (even if None)
+
+                # If sensor is not in this node's sensor_data, write the value (even if None)
+                if sensor not in self.states[node]['sensor_data']:
+                    self.states[node]['timestamp'] = timestamp
+                    self.states[node]['rack_id'] = rack_id
+                    self.states[node]['sensor_data'][sensor] = value
+                    continue
+
+                # Otherwise, only update if all fields are present (i.e., value is not None)
+                if None in (sensor, node, value, timestamp, rack_id):
+                    logger.warning(f"Incomplete sensor data: {sensor_data}")
+                    continue
+
+                # Always update timestamp and rack_id to the latest, and update sensor value
                 self.states[node]['timestamp'] = timestamp
                 self.states[node]['rack_id'] = rack_id
                 self.states[node]['sensor_data'][sensor] = value
-                logger.info(f"Updating state for sensor '{sensor}' on node {node}: value={value}, timestamp={timestamp}, rack_id={rack_id}")
 
-            self.output_queue.push(self.states)
+            self.output_queue.put(copy.deepcopy(self.states))

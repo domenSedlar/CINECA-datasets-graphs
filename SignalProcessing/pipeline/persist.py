@@ -14,12 +14,15 @@ class StatePersister:
         self.output_file = output_file
 
     def run(self, timeout=0):
+        rows_written = 0
         while True:
-            state = self.input_queue.pop(timeout=timeout)
-            logger.info(f"Received state from input_queue in StatePersister")
+            state = self.input_queue.get()
             if state is None:
-                logger.info(f"No state to write to {self.output_file}")
                 break
+            logger.debug(f"Received state from input_queue in StatePersister")
             with open(self.output_file, 'a') as f:
-                logger.info(f"Writing state to {self.output_file}")
+                logger.debug(f"Writing state to {self.output_file}")
                 f.write(json.dumps(state, default=default_serializer) + '\n')
+            rows_written += 1
+            if rows_written % 1000 == 0:
+                logger.info(f"StatePersister: Written {rows_written} rows.")

@@ -3,12 +3,14 @@ import logging
 from common.logger import Logger
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class ChangeLevelDetector:
-    def __init__(self, input_queue, output_queue, delta=0.005):  # More sensitive
+    def __init__(self, input_queue, output_queue, delta=0.002, clock=16):  # TODO what are the right parameters?
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.delta = delta
+        self.clock = clock
         self.adwins = {}
         self.medians = {}  # Use river's Quantile for median
         from river.stats import Quantile
@@ -44,17 +46,26 @@ class ChangeLevelDetector:
             sensor_data = node_data.get('sensor_data', {})
             for sensor, value in sensor_data.items():
                 if value is None:
+                    logger.warning(f"Value is None for node: {node}, sensor: {sensor}")
                     continue
                 key = (node, sensor)
                 if key not in self.adwins:
-                    self.adwins[key] = ADWIN(delta=self.delta)
+                    # logger.info(f"Created new ADWIN for {key}")
+                    self.adwins[key] = ADWIN(delta=self.delta, clock=self.clock)
                 adwin = self.adwins[key]
                 adwin.update(value)
                 self._add_number(node, sensor, value)
+                if sensor == 'ambient_avg' and node == 3:
+                    #print(value)
+                    pass
                 if adwin.drift_detected:
                     drift_detected = True
                     drift_pairs.add(key)
-                    logger.info(f"Drift detected for {node}, {sensor}")
+                    logger.debug(f"Drift detected value: {value}, node: {node}, sensor: {sensor}")
+                    if sensor == 'ambient_avg' and node == 3:
+                        continue
+                        #print("detected")
+
         # If any drift detected, output all medians for all pairs
         if drift_detected:
             output = []
@@ -75,17 +86,18 @@ class ChangeLevelDetector:
                     'rack_id': rack_id
                 })
             
-            self.output_queue.push(output)
-            logger.info(f"Pushed {len(output)} outputs to output_queue")
+            self.output_queue.put(output)
+            # logger.info(f"Pushed {len(output)} outputs to output_queue")
 
     def run(self, timeout=0):
         """
         Continuously pops dicts from input_queue, each mapping sensor to reading,
-        and processes all sensors in batch.
+        and processes all sensors in batch. Passes None to output_queue when done.
         """
         while True:
-            reading = self.input_queue.pop(timeout=timeout)
+            reading = self.input_queue.get()
             if reading is None:
-                logger.info("No data found in input queue")
+                self.output_queue.put(None)
                 break
+            print(reading)
             self.process_batch(reading) 

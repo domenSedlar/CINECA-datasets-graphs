@@ -108,7 +108,7 @@ class NodeSensorManager:
             if next_time > allowed_next_time: # if next reading is too far in the future, buffer the row for next interval
                 # Buffer the row for future calls
                 self._buffered_row = next_row
-                sensor_data = {k: None for k in self._sensor_columns}
+                sensor_data = {k: None for k in self.sensor_columns}
                 self.current_time = expected_next_time
                 return { # for now we return None, as we have no data for this interval
                     'timestamp': to_json_serializable_timestamp(self.current_time),

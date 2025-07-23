@@ -8,7 +8,7 @@ def main():
     row_count = 0
     for row in read_tar_parquet(tar_path):
         row_count += 1
-        queue.push(row)
+        queue.put(row)
         if row_count >= 5:
             break
 

@@ -7,6 +7,8 @@ import logging
 from pipeline.file_reading.node_sensor_manager import NodeSensorManager
 from simple_queue import SimpleQueue as Queue
 import json
+import time
+import copy
 
 
 import logging
@@ -35,6 +37,10 @@ class NodeManager:
         earliest_timestamp = None
         table = None
 
+        max_rows = 0
+        max_file = None
+        node_expected_rows = {}  # node_id -> expected row count
+        node_processed_rows = {}  # node_id -> processed row count
         for tar_filename in os.listdir(self.tarfiles_path):
             if not tar_filename.endswith('.tar'): 
                 continue
@@ -69,26 +75,38 @@ class NodeManager:
                                     if not pd.isnull(min_ts):
                                         if earliest_timestamp is None or min_ts < earliest_timestamp:
                                             earliest_timestamp = min_ts
+                                # Count rows in this parquet file
+                                nrows = table.metadata.num_rows if table.metadata is not None else None
+                                if nrows is not None:
+                                    node_expected_rows[node_id] = nrows
+                                    node_processed_rows[node_id] = 0
+                                if nrows is not None and nrows > max_rows:
+                                    max_rows = nrows
+                                    max_file = f'{tar_filename}:{member.name}'
                             except Exception as e:
                                 logger.warning(f"Failed to read timestamp from {member.name} in {tar_path}: {e}")
             except Exception as e:
                 logger.error(f"Error processing tar file {tar_path}: {e}")
 
         logger.info(f"Earliest measurement timestamp across all files: {earliest_timestamp}")
+        logger.info(f"File with most rows: {max_file} with {max_rows} rows")
         self.earliest_timestamp = earliest_timestamp
 
         if table is not None: # only read the avg columns, not the min/max/std
             all_columns = table.schema.names
-            sensor_columns = [col for col in all_columns if col != 'timestamp' and not (col.endswith('_min') or col.endswith('_max') or col.endswith('_std'))] 
+            sensor_columns = [col for col in all_columns if col != 'timestamp' and not (col.endswith('_min') or col.endswith('_max') or col.endswith('_std'))][:2] # for testing limit to 2 columns
             self.sensor_columns = sensor_columns
 
         self.node_managers = {}
-        for node, tar_path in zip(nodes, tar_paths):
+        for node, tar_path in zip(nodes[:2], tar_paths[:2]): # for testing limit to 2 nodes
             rack_id = os.path.splitext(os.path.basename(tar_path))[0]
             manager = NodeSensorManager(node, tar_path, rack_id=rack_id, current_time=earliest_timestamp, sensor_columns=self.sensor_columns, interval_seconds=self.interval_seconds)
             self.node_managers[node] = manager
 
-    def iterate_batches(self, limit_rows=None):
+        self.node_expected_rows = node_expected_rows
+        self.node_processed_rows = node_processed_rows
+
+    def iterate_batches(self, limit_rows=None, stop_event=None):
         """
         Yields a dictionary {node_id: reading} for each batch,
         until all NodeSensorManagers are exhausted.
@@ -98,25 +116,51 @@ class NodeManager:
         batch = {}
         rows_processed = 0
 
+        start_time = time.time()
+        last_log_time = start_time
         while active_nodes:
+            if stop_event and stop_event.is_set():
+                logger.info("NodeManager.iterate_batches detected stop_event set, breaking loop.")
+                break
             to_remove = []
             for node_id in active_nodes:
+                if stop_event and stop_event.is_set():
+                    logger.info("NodeManager.iterate_batches detected stop_event set inside node loop, breaking.")
+                    break
                 reading = self.node_managers[node_id].next_readings()
                 if reading is None:
                     to_remove.append(node_id)
                 else:
                     batch[node_id] = reading
+                    # Count processed rows per node
+                    if node_id in self.node_processed_rows:
+                        self.node_processed_rows[node_id] += 1
             for node_id in to_remove:
                 active_nodes.remove(node_id)
                 unactive_nodes.add(node_id)
             if batch:
-                print(json.dumps(batch, default=str))
-                self.buffer.push(batch)
+                self.buffer.put(copy.deepcopy(batch))
+                # print(batch)
                 rows_processed += 1
+                if rows_processed % 1000 == 0:
+                    now = time.time()
+                    interval = now - last_log_time
+                    total = now - start_time
+                    logger.info(f"NodeManager: Processed {rows_processed} batches. Last 1000 in {interval:.2f}s, total elapsed {total:.2f}s.")
+                    last_log_time = now
                 if limit_rows is not None and rows_processed >= limit_rows:
                     break
-                # output in format: {node_id: {timestamp: timestamp, sensor_data: {sensor_id: value, ...}}, ...}
-                # INSERT_YOUR_CODE
+        self.buffer.put(None)
+        # After processing, log expected vs actual rows per node
+        logger.info("NodeManager: Checking processed row counts per node...")
+        for node_id in self.node_expected_rows:
+            expected = self.node_expected_rows[node_id]
+            actual = self.node_processed_rows.get(node_id, 0)
+            if expected != actual:
+                logger.warning(f"Node {node_id}: Expected {expected} rows, processed {actual} rows!")
+            else:
+                logger.info(f"Node {node_id}: Processed all {actual} rows as expected.")
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Node Manager Batch Iterator")

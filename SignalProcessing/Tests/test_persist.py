@@ -17,7 +17,7 @@ def main():
         {'A': {'node': 'A', 'timestamp': 100, 'value': 20}, 'B': {'node': 'B', 'timestamp': 12, 'value': 20}},
     ]
     for state in states:
-        input_queue.push(state)
+        input_queue.put(state)
 
     persister = StatePersister(input_queue, output_file=output_file)
     for _ in range(len(states)):
