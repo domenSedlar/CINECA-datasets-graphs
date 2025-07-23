@@ -109,7 +109,7 @@ class NodeManager:
                 active_nodes.remove(node_id)
                 unactive_nodes.add(node_id)
             if batch:
-                logger.info(f"Pushing batch to buffer: {batch}")
+                print(batch)
                 self.buffer.push(batch)
                 rows_processed += 1
                 if limit_rows is not None and rows_processed >= limit_rows:
