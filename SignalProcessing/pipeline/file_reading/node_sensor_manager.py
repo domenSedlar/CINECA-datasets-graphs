@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import timedelta
 
 class NodeSensorManager:
-    def __init__(self, node_id, tar_path, rack_id, current_time=None, timestamp_col='timestamp', interval_seconds=60*15): # manages sensor data for a single node
+    def __init__(self, node_id, tar_path, rack_id, current_time=None, sensor_columns=None, timestamp_col='timestamp', interval_seconds=60*15): # manages sensor data for a single node
         self.node_id = node_id
         self.tar_path = tar_path
         self.rack_id = rack_id
@@ -14,8 +14,9 @@ class NodeSensorManager:
         self.sensor_generator = None
         self.current_readings = None
         self.current_time = current_time - self.interval
-        self._prepare_generators()
         self._first_reading_yielded = False if current_time is None else True
+        self.sensor_columns = sensor_columns
+        self._prepare_generators()
 
 
     def _prepare_generators(self):
@@ -31,13 +32,13 @@ class NodeSensorManager:
         # Use pyarrow to read the parquet file from bytes
         table = pq.ParquetFile(io.BytesIO(parquet_bytes))
 
-        # Determine the first 3 sensor columns (excluding timestamp) - for testing we limit to only 3 columns so it runs faster, will be removed soon
-        all_columns = table.schema.names
-        sensor_columns = [col for col in all_columns if col != self.timestamp_col][:3]
-        self._sensor_columns = sensor_columns
+        if self.sensor_columns is None:
+            # Determine the first 3 sensor columns (excluding timestamp) - for testing we limit to only 3 columns so it runs faster, will be removed soon
+            all_columns = table.schema.names
+            self.sensor_columns = [col for col in all_columns if col != self.timestamp_col][:3]
 
         def row_generator():
-            for batch in table.iter_batches(batch_size=100, columns=[self.timestamp_col] + sensor_columns): # for testing we limit to only 3 columns
+            for batch in table.iter_batches(batch_size=100, columns=[self.timestamp_col] + self.sensor_columns):
                 batch_df = batch.to_pandas()
                 for _, row in batch_df.iterrows():
                     yield row
@@ -48,7 +49,7 @@ class NodeSensorManager:
         import math
         import pandas as pd
         sanitized = {}
-        for k in self._sensor_columns:
+        for k in self.sensor_columns:
             v = row.get(k, None)
             if v is None or (isinstance(v, float) and math.isnan(v)) or (hasattr(pd, 'isna') and pd.isna(v)) or not isinstance(v, (int, float)):
                 # Use last valid value from current_readings if available, else None

@@ -18,10 +18,12 @@ logger = logging.getLogger("run_pipeline")
 
 class NodeManager:
     def __init__(self, buffer: Queue, tarfiles_path='./TarFiles/', interval_seconds=60*15):
+        logger = logging.getLogger(__name__)
+
         self.tarfiles_path = tarfiles_path
         self.interval_seconds = interval_seconds
         self.buffer = buffer
-        logger = logging.getLogger(__name__)
+        self.sensor_columns = None # limits which sensors we read
 
         nodes = []
         tar_paths = []
@@ -30,6 +32,7 @@ class NodeManager:
         nodes = []
         tar_paths = []
         earliest_timestamp = None
+        table = None
 
         for tar_filename in os.listdir(self.tarfiles_path):
             if not tar_filename.endswith('.tar'): 
@@ -73,10 +76,15 @@ class NodeManager:
         logger.info(f"Earliest measurement timestamp across all files: {earliest_timestamp}")
         self.earliest_timestamp = earliest_timestamp
 
+        if table is not None: # only read the avg columns, not the min/max/std
+            all_columns = table.schema.names
+            sensor_columns = [col for col in all_columns if col != 'timestamp' and not (col.endswith('_min') or col.endswith('_max') or col.endswith('_std'))] 
+            self.sensor_columns = sensor_columns
+
         self.node_managers = {}
         for node, tar_path in zip(nodes, tar_paths):
             rack_id = os.path.splitext(os.path.basename(tar_path))[0]
-            manager = NodeSensorManager(node, tar_path, rack_id=rack_id, current_time=earliest_timestamp, interval_seconds=self.interval_seconds)
+            manager = NodeSensorManager(node, tar_path, rack_id=rack_id, current_time=earliest_timestamp, sensor_columns=self.sensor_columns, interval_seconds=self.interval_seconds)
             self.node_managers[node] = manager
 
     def iterate_batches(self, limit_rows=None):
@@ -117,8 +125,8 @@ def main():
 
     # Assuming NodeManager is the class containing this method
     manager = NodeManager(buffer=Queue(), tarfiles_path=args.tar_path, interval_seconds=args.interval_seconds)
-    for _ in manager.iterate_batches():
-        pass  # batches are pushed to buffer, nothing to do here
+    manager.iterate_batches(limit_rows=10)
+    
 
 if __name__ == "__main__":
     main()
