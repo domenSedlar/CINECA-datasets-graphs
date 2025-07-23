@@ -8,3 +8,5 @@ class SimpleQueue:
         if self._queue:
             return self._queue.pop(0)
         return None
+    def empty(self):
+        return len(self._queue) == 0

@@ -69,10 +69,22 @@ class NodeSensorManager:
         return a dict with all sensor keys set to None, do not update current_readings, but advance current_time by interval.
         The next call will check the same buffered row until the time catches up.
         """
+        import pandas as pd
         if not hasattr(self, '_buffered_row'):
             self._buffered_row = None
         if not hasattr(self, '_first_reading_yielded'):
             self._first_reading_yielded = False
+
+        # Convert timestamp to ISO format for JSON serialization
+        def to_json_serializable_timestamp(ts):
+            if ts is None:
+                return None
+            if isinstance(ts, (pd.Timestamp,)):
+                return ts.isoformat()
+            if hasattr(ts, 'isoformat'):
+                return ts.isoformat()
+            return str(ts)
+
         try:
             # On the very first call, yield the first row
             if not self._first_reading_yielded:
@@ -81,7 +93,7 @@ class NodeSensorManager:
                 self.current_readings = self._sanitize_sensor_values(next_row)
                 self._first_reading_yielded = True
                 return {
-                    'timestamp': self.current_time,
+                    'timestamp': to_json_serializable_timestamp(self.current_time),
                     'rack_id': self.rack_id,
                     'sensor_data': self.current_readings.copy() if self.current_readings else None
                 }
@@ -99,7 +111,7 @@ class NodeSensorManager:
                 sensor_data = {k: None for k in self._sensor_columns}
                 self.current_time = expected_next_time
                 return { # for now we return None, as we have no data for this interval
-                    'timestamp': self.current_time,
+                    'timestamp': to_json_serializable_timestamp(self.current_time),
                     'rack_id': self.rack_id,
                     'sensor_data': sensor_data
                 }
@@ -108,7 +120,7 @@ class NodeSensorManager:
                 self.current_time = next_time
                 self.current_readings = self._sanitize_sensor_values(next_row)
                 return {
-                    'timestamp': self.current_time,
+                    'timestamp': to_json_serializable_timestamp(self.current_time),
                     'rack_id': self.rack_id,
                     'sensor_data': self.current_readings.copy() if self.current_readings else None
                 }

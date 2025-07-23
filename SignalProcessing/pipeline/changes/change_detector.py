@@ -54,6 +54,7 @@ class ChangeLevelDetector:
                 if adwin.drift_detected:
                     drift_detected = True
                     drift_pairs.add(key)
+                    logger.info(f"Drift detected for {node}, {sensor}")
         # If any drift detected, output all medians for all pairs
         if drift_detected:
             output = []

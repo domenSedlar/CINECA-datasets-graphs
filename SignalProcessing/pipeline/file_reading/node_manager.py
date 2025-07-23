@@ -6,6 +6,7 @@ import pandas as pd
 import logging
 from pipeline.file_reading.node_sensor_manager import NodeSensorManager
 from simple_queue import SimpleQueue as Queue
+import json
 
 
 import logging
@@ -109,7 +110,7 @@ class NodeManager:
                 active_nodes.remove(node_id)
                 unactive_nodes.add(node_id)
             if batch:
-                print(batch)
+                print(json.dumps(batch, default=str))
                 self.buffer.push(batch)
                 rows_processed += 1
                 if limit_rows is not None and rows_processed >= limit_rows:
