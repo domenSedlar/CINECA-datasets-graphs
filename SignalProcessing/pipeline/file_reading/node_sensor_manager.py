@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import timedelta
 
 class NodeSensorManager:
-    def __init__(self, node_id, tar_path, rack_id, current_time=None, sensor_columns=None, timestamp_col='timestamp', interval_seconds=60*15): # manages sensor data for a single node
+    def __init__(self, node_id, tar_path, rack_id, current_time=None, sensor_columns=None, timestamp_col='timestamp', interval_seconds=60*15, expected_rows=None): # manages sensor data for a single node
         self.node_id = node_id
         self.tar_path = tar_path
         self.rack_id = rack_id
@@ -16,6 +16,8 @@ class NodeSensorManager:
         self.current_time = current_time - self.interval
         self._first_reading_yielded = False if current_time is None else True
         self.sensor_columns = sensor_columns
+        self.expected_rows = expected_rows
+        self.processed_rows = 0
         self._prepare_generators()
 
 
@@ -92,6 +94,7 @@ class NodeSensorManager:
                 self.current_time = next_row[self.timestamp_col]
                 self.current_readings = self._sanitize_sensor_values(next_row)
                 self._first_reading_yielded = True
+                self.processed_rows += 1
                 return {
                     'timestamp': to_json_serializable_timestamp(self.current_time),
                     'rack_id': self.rack_id,
@@ -119,6 +122,7 @@ class NodeSensorManager:
                 self._buffered_row = None
                 self.current_time = next_time
                 self.current_readings = self._sanitize_sensor_values(next_row)
+                self.processed_rows += 1
                 return {
                     'timestamp': to_json_serializable_timestamp(self.current_time),
                     'rack_id': self.rack_id,
@@ -128,3 +132,9 @@ class NodeSensorManager:
             self.current_time = None
             self.current_readings = None
             return None
+
+    def get_processed_row_count(self):
+        return self.processed_rows
+
+    def get_expected_row_count(self):
+        return self.expected_rows

@@ -3,10 +3,10 @@ import logging
 from common.logger import Logger
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 class ChangeLevelDetector:
-    def __init__(self, input_queue, output_queue, delta=0.002, clock=16):  # TODO what are the right parameters?
+    def __init__(self, input_queue, output_queue, delta=0.001, clock=16):  # TODO what are the right parameters?
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.delta = delta
@@ -56,7 +56,7 @@ class ChangeLevelDetector:
                 adwin.update(value)
                 self._add_number(node, sensor, value)
                 if sensor == 'ambient_avg' and node == 3:
-                    #print(value)
+                    # print(value, "\t\t\t", timestamp)
                     pass
                 if adwin.drift_detected:
                     drift_detected = True
@@ -95,9 +95,10 @@ class ChangeLevelDetector:
         and processes all sensors in batch. Passes None to output_queue when done.
         """
         while True:
+            if self.input_queue.empty():
+                logger.info("ChangeLevelDetector is waiting for data from NodeManager...")
             reading = self.input_queue.get()
             if reading is None:
                 self.output_queue.put(None)
                 break
-            print(reading)
             self.process_batch(reading) 

@@ -100,11 +100,12 @@ class NodeManager:
         self.node_managers = {}
         for node, tar_path in zip(nodes[:2], tar_paths[:2]): # for testing limit to 2 nodes
             rack_id = os.path.splitext(os.path.basename(tar_path))[0]
-            manager = NodeSensorManager(node, tar_path, rack_id=rack_id, current_time=earliest_timestamp, sensor_columns=self.sensor_columns, interval_seconds=self.interval_seconds)
+            expected_rows = node_expected_rows.get(node, None)
+            manager = NodeSensorManager(node, tar_path, rack_id=rack_id, current_time=earliest_timestamp, sensor_columns=self.sensor_columns, interval_seconds=self.interval_seconds, expected_rows=expected_rows)
             self.node_managers[node] = manager
 
-        self.node_expected_rows = node_expected_rows
-        self.node_processed_rows = node_processed_rows
+        # self.node_expected_rows = node_expected_rows
+        # self.node_processed_rows = node_processed_rows
 
     def iterate_batches(self, limit_rows=None, stop_event=None):
         """
@@ -132,9 +133,6 @@ class NodeManager:
                     to_remove.append(node_id)
                 else:
                     batch[node_id] = reading
-                    # Count processed rows per node
-                    if node_id in self.node_processed_rows:
-                        self.node_processed_rows[node_id] += 1
             for node_id in to_remove:
                 active_nodes.remove(node_id)
                 unactive_nodes.add(node_id)
@@ -153,9 +151,9 @@ class NodeManager:
         self.buffer.put(None)
         # After processing, log expected vs actual rows per node
         logger.info("NodeManager: Checking processed row counts per node...")
-        for node_id in self.node_expected_rows:
-            expected = self.node_expected_rows[node_id]
-            actual = self.node_processed_rows.get(node_id, 0)
+        for node_id, manager in self.node_managers.items():
+            expected = manager.get_expected_row_count()
+            actual = manager.get_processed_row_count()
             if expected != actual:
                 logger.warning(f"Node {node_id}: Expected {expected} rows, processed {actual} rows!")
             else:
