@@ -6,6 +6,7 @@ from pipeline.state_builder import StateBuilder
 from pipeline.persist import StatePersister
 import logging
 import os
+import datetime
 
 logging.basicConfig(
     level=logging.debug,
@@ -20,7 +21,7 @@ def main():
     change_queue = queue.Queue()
     state_queue = queue.Queue()
 
-    output_file = './outputs/threaded_pipeline_state.json'
+    output_file = f'./outputs/threaded_pipeline_state_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.json'
 
     # Remove output file if it exists
     if os.path.exists(output_file):

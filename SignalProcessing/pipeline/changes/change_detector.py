@@ -13,10 +13,27 @@ class ChangeLevelDetector:
         self.clock = clock
         self.adwins = {}
         self.medians = {}  # Use river's Quantile for median
+        self.queue = {} # for each node, sensor pair, contains a list of the last few readings
         from river.stats import Quantile
         self.Quantile = Quantile
 
-    def _add_number(self, node, sensor, num):
+
+    def _add_to_queue(self, node_id, sensor_id, reading):
+        if node_id not in self.queue:
+            self.queue[node_id] = {}
+        if sensor_id not in self.queue[node_id]:
+            self.queue[node_id][sensor_id] = []
+        self.queue[node_id][sensor_id].append(reading)
+        while len(self.queue[node_id][sensor_id]) > self.clock/2:
+            self.queue[node_id][sensor_id].pop(0)
+
+    def _feed_queue2median(self, node, sensor):
+        key = (node, sensor)
+        for reading in self.queue[node][sensor]:
+            self.medians[key].update(reading)
+
+
+    def _add_to_median(self, node, sensor, num):
         # Use river's Quantile for approximate median, now per (node, sensor)
         key = (node, sensor)
         if key not in self.medians:
@@ -32,6 +49,7 @@ class ChangeLevelDetector:
     def _reset_median(self, node, sensor):
         key = (node, sensor)
         self.medians[key] = self.Quantile(0.5)
+        self._feed_queue2median(node, sensor)
 
     def process_batch(self, batch):
         """
@@ -52,9 +70,12 @@ class ChangeLevelDetector:
                 if key not in self.adwins:
                     # logger.info(f"Created new ADWIN for {key}")
                     self.adwins[key] = ADWIN(delta=self.delta, clock=self.clock)
+
                 adwin = self.adwins[key]
                 adwin.update(value)
-                self._add_number(node, sensor, value)
+                self._add_to_median(node, sensor, value)
+                self._add_to_queue(node, sensor, value)
+
                 if sensor == 'ambient_avg' and node == 3:
                     # print(value, "\t\t\t", timestamp)
                     pass

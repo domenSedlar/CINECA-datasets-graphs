@@ -20,7 +20,6 @@ class NodeSensorManager:
         self.processed_rows = 0
         self._prepare_generators()
 
-
     def _prepare_generators(self):
         import pyarrow.parquet as pq
         # Open the tar file (assume it's named '{node_id}.tar' and located at self.tar_path)
