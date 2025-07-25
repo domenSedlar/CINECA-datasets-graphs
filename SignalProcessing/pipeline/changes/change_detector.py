@@ -6,6 +6,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class ChangeLevelDetector:
+    STOP_SIGNAL = object()
     def __init__(self, input_queue, output_queue, delta=0.005, clock=10):  # TODO what are the right parameters?
         self.input_queue = input_queue
         self.output_queue = output_queue
@@ -117,7 +118,7 @@ class ChangeLevelDetector:
         """
         while True:
             reading = self.input_queue.get()
-            if reading is None:
+            if reading is None or reading is self.STOP_SIGNAL:
                 self.output_queue.put(None)
                 break
             self.process_batch(reading) 
