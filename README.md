@@ -9,5 +9,5 @@ pip install -r requirements.txt
 python -m run_pipeline
 
 # to see how different parameters affect the change detector
-python -m evaluate_parameters.py
+python -m evaluate_parameters.py > file.csv
 ```
