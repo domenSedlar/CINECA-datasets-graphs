@@ -1,7 +1,7 @@
 import threading
 import queue
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
 from pipeline.changes.change_detector import ChangeLevelDetector
 from pipeline.file_reading.node_manager import NodeManager
 import logging
@@ -53,7 +53,7 @@ def run_first_two_stages(batches, delta=0.005, clock=10, stop_event=None, change
         ratio = None
     return delta, clock, ratio, elapsed
 
-def collect_rows(limit=10000, stop_event=None):
+def collect_rows(limit=10000, skip_rows=0, stop_event=None):
     """
     Runs NodeManager and collects all batches. Returns the list of batches from index 10000 (inclusive) to 10000+limit (exclusive).
     If stop_event is set, will break early.
@@ -65,7 +65,7 @@ def collect_rows(limit=10000, stop_event=None):
     batches = []
 
     def run_node_manager():
-        node_manager.iterate_batches(stop_event=stop_event, limit_rows=limit+10000+1)
+        node_manager.iterate_batches(stop_event=stop_event, limit_rows=limit+skip_rows+1)
         buffer_queue.put(None)
 
     t = threading.Thread(target=run_node_manager)
@@ -80,7 +80,7 @@ def collect_rows(limit=10000, stop_event=None):
         batches.append(batch)
     t.join()
     # Return the slice from 10000 (inclusive) to 10000+limit (exclusive)
-    return batches[10000:limit + 10000]
+    return batches[skip_rows:limit + skip_rows]
 
 def evaluate_parameters():
     parameters_delta = [0.5, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001]
@@ -88,7 +88,7 @@ def evaluate_parameters():
 
     stop_event = threading.Event()
     try:
-        batches = collect_rows(limit=10000, stop_event=stop_event)
+        batches = collect_rows(limit=5000, stop_event=stop_event)
     except KeyboardInterrupt:
         logging.info("KeyboardInterrupt received! Sending stop signal to all change queues...")
         stop_event.set()
@@ -96,19 +96,39 @@ def evaluate_parameters():
 
     futures = []
     change_queues = []
+    done = set()
+
     with ThreadPoolExecutor(max_workers=8) as executor:
         try:
+            # Submit all tasks
             for delta in parameters_delta:
                 for clock in parameters_clock:
                     futures.append(executor.submit(run_first_two_stages, batches, delta, clock, stop_event, change_queues))
-            for future in as_completed(futures):
-                result = future.result()
-                print(result)
-        except KeyboardInterrupt:
-            logging.info("KeyboardInterrupt received! Sending stop signal to all change queues...")
+
+            # Poll for results
+            while len(done) < len(futures):
+                try:
+                    finished, _ = wait(futures, timeout=1, return_when=FIRST_COMPLETED)
+                    for future in finished:
+                        if future not in done:
+                            try:
+                                result = future.result()
+                                print(result)
+                            except Exception as e:
+                                logging.error(f"Exception in worker thread: {e}")
+                            done.add(future)
+                except KeyboardInterrupt:
+                    logging.info("KeyboardInterrupt received! Setting stop_event...")
+                    stop_event.set()
+                    break  # Exit the polling loop
+
+        except Exception as e:
+            logging.exception("Unhandled exception in main thread")
             stop_event.set()
-            for q in change_queues:
-                q.put(None)
+        finally:
+            # Optionally wait for all threads to acknowledge stop_event
+            logging.info("Shutting down executor...")
+            executor.shutdown(wait=False)
 
 if __name__ == "__main__":
     evaluate_parameters() 
