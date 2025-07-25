@@ -72,12 +72,14 @@ def run_first_two_stages(batches, delta=0.005, clock=10):
     """
     Runs only the ChangeLevelDetector stage using the provided batches.
     Tracks and prints how many rows (batches) are passed to both queues.
-    Returns the result string for this parameter set.
+    Returns the result string and elapsed time for this parameter set.
     """
     import queue
     import threading
+    import time
     from pipeline.changes.change_detector import ChangeLevelDetector
 
+    start_time = time.time()
     buffer_queue = queue.Queue()
     change_queue = queue.Queue()
 
@@ -105,9 +107,9 @@ def run_first_two_stages(batches, delta=0.005, clock=10):
     # Run the change detector in the main thread (no need for threading)
     change_detector.run()
 
-    # Return the ratio result string after processing is complete
+    elapsed = time.time() - start_time
     ratio = change_queue_count / len(batches)
-    return f"{delta};{clock};{ratio}"
+    return delta, clock, ratio, elapsed
 
 def collect_rows():
     """
