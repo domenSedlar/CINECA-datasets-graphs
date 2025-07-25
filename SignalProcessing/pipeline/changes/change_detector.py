@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class ChangeLevelDetector:
-    def __init__(self, input_queue, output_queue, delta=0.001, clock=16):  # TODO what are the right parameters?
+    def __init__(self, input_queue, output_queue, delta=0.005, clock=10):  # TODO what are the right parameters?
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.delta = delta
@@ -64,7 +64,7 @@ class ChangeLevelDetector:
             sensor_data = node_data.get('sensor_data', {})
             for sensor, value in sensor_data.items():
                 if value is None:
-                    logger.warning(f"Value is None for node: {node}, sensor: {sensor}")
+                    # logger.warning(f"Value is None for node: {node}, sensor: {sensor}, timestamp: {timestamp}")
                     continue
                 key = (node, sensor)
                 if key not in self.adwins:
@@ -116,8 +116,6 @@ class ChangeLevelDetector:
         and processes all sensors in batch. Passes None to output_queue when done.
         """
         while True:
-            if self.input_queue.empty():
-                logger.info("ChangeLevelDetector is waiting for data from NodeManager...")
             reading = self.input_queue.get()
             if reading is None:
                 self.output_queue.put(None)

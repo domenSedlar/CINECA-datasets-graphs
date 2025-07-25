@@ -94,11 +94,11 @@ class NodeManager:
 
         if table is not None: # only read the avg columns, not the min/max/std
             all_columns = table.schema.names
-            sensor_columns = [col for col in all_columns if col != 'timestamp' and not (col.endswith('_min') or col.endswith('_max') or col.endswith('_std'))][:2] # for testing limit to 2 columns
+            sensor_columns = [col for col in all_columns if col != 'timestamp' and not (col.endswith('_min') or col.endswith('_max') or col.endswith('_std'))]
             self.sensor_columns = sensor_columns
 
         self.node_managers = {}
-        for node, tar_path in zip(nodes[:2], tar_paths[:2]): # for testing limit to 2 nodes
+        for node, tar_path in zip(nodes, tar_paths):
             rack_id = os.path.splitext(os.path.basename(tar_path))[0]
             expected_rows = node_expected_rows.get(node, None)
             manager = NodeSensorManager(node, tar_path, rack_id=rack_id, current_time=earliest_timestamp, sensor_columns=self.sensor_columns, interval_seconds=self.interval_seconds, expected_rows=expected_rows)
