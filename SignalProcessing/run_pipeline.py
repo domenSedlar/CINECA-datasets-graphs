@@ -140,8 +140,7 @@ def collect_rows():
     # Return the slice from 10000 (inclusive) to 30000 (exclusive)
     return batches[10000:30000]
 
-
-def main():
+def evaluate_parameters():
     from concurrent.futures import ThreadPoolExecutor, as_completed
     parameters_delta = [0.5, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001]
     parameters_clock = [3, 6, 8, 12, 16, 20, 24]
@@ -156,6 +155,10 @@ def main():
         for future in as_completed(futures):
             result = future.result()
             print(result)
+
+def main():
+    run()
+    # evaluate_parameters()
 
 if __name__ == "__main__":
     main()
