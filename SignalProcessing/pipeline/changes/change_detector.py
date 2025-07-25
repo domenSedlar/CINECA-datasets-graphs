@@ -111,14 +111,19 @@ class ChangeLevelDetector:
             self.output_queue.put(output)
             # logger.info(f"Pushed {len(output)} outputs to output_queue")
 
-    def run(self, timeout=0):
+    def run(self, timeout=0, stop_event=None):
         """
         Continuously pops dicts from input_queue, each mapping sensor to reading,
         and processes all sensors in batch. Passes None to output_queue when done.
+        If stop_event is provided (threading.Event), will break if stop_event.is_set().
         """
         while True:
+            if stop_event is not None and stop_event.is_set():
+                logger.info("ChangeLevelDetector.run detected stop_event set, breaking loop.")
+                self.output_queue.put(None)
+                break
             reading = self.input_queue.get()
-            if reading is None or reading is self.STOP_SIGNAL:
+            if reading is None:
                 self.output_queue.put(None)
                 break
             self.process_batch(reading) 
