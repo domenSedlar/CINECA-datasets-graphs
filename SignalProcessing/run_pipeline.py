@@ -68,84 +68,92 @@ def run():
 
 
 
-def run_first_two_stages():
+def run_first_two_stages(batches, delta=0.005, clock=10):
     """
-    Runs only the first two stages of the pipeline: NodeManager and ChangeLevelDetector.
+    Runs only the ChangeLevelDetector stage using the provided batches.
     Tracks and prints how many rows (batches) are passed to both queues.
+    Returns the result string for this parameter set.
     """
     import queue
     import threading
-    from pipeline.file_reading.node_manager import NodeManager
     from pipeline.changes.change_detector import ChangeLevelDetector
 
     buffer_queue = queue.Queue()
     change_queue = queue.Queue()
 
-    stop_event = threading.Event()
-
-    node_manager = NodeManager(buffer=buffer_queue)
-    change_detector = ChangeLevelDetector(buffer_queue, change_queue)
-
     # Counters for batches passed to each queue
-    buffer_queue_count = 0
     change_queue_count = 0
-    counters_reset = False
-
-    # Wrap the original put method to count puts to buffer_queue
-    orig_buffer_put = buffer_queue.put
-    def buffer_put_counted(item):
-        nonlocal buffer_queue_count
-        orig_buffer_put(item)
-        if item is not None:
-            buffer_queue_count += 1
-    buffer_queue.put = buffer_put_counted
 
     # Wrap the original put method to count puts to change_queue
     orig_change_put = change_queue.put
     def change_put_counted(item):
-        nonlocal change_queue_count, buffer_queue_count, counters_reset
-        orig_change_put(item)
+        nonlocal change_queue_count
         if item is not None:
             change_queue_count += 1
-            if not counters_reset and change_queue_count == 1000: # for the first 1000 items, the data is incomplete, so they dont provide an accurete assessment
-                logger.info("Resetting counters after 1000 items in change_queue.")
-                buffer_queue_count = 0
-                change_queue_count = 0
-                counters_reset = True
+            if change_queue_count % 1000 == 0:
+                logger.info(f"{change_queue_count} items have been placed into change_queue.")
+        orig_change_put(item)
     change_queue.put = change_put_counted
 
-    node_manager_thread = threading.Thread(target=lambda: node_manager.iterate_batches(stop_event=stop_event), name="NodeManagerThread")
-    change_detector_thread = threading.Thread(target=change_detector.run, name="ChangeLevelDetectorThread")
+    # Feed the batches into buffer_queue
+    for batch in batches:
+        buffer_queue.put(batch)
+    buffer_queue.put(None)  # Signal end of input
 
-    node_manager_thread.start()
-    change_detector_thread.start()
+    change_detector = ChangeLevelDetector(buffer_queue, change_queue, delta=delta, clock=clock)
 
-    try:
-        while node_manager_thread.is_alive() or change_detector_thread.is_alive():
-            node_manager_thread.join(timeout=0.5)
-            change_detector_thread.join(timeout=0.5)
-    except KeyboardInterrupt:
-        logger.info("KeyboardInterrupt received! Setting stop event and sending sentinels.")
-        stop_event.set()
+    # Run the change detector in the main thread (no need for threading)
+    change_detector.run()
+
+    # Return the ratio result string after processing is complete
+    ratio = change_queue_count / len(batches)
+    return f"{delta};{clock};{ratio}"
+
+def collect_rows():
+    """
+    Runs NodeManager and collects all batches. Returns the list of batches from index 10000 (inclusive) to 30000 (exclusive).
+    """
+    import queue
+    import threading
+    from pipeline.file_reading.node_manager import NodeManager
+
+    buffer_queue = queue.Queue()
+    stop_event = threading.Event()
+    node_manager = NodeManager(buffer=buffer_queue)
+    batches = []
+
+    def run_node_manager():
+        node_manager.iterate_batches(stop_event=stop_event)
         buffer_queue.put(None)
-        change_queue.put(None)
-        node_manager_thread.join(timeout=5)
-        change_detector_thread.join(timeout=5)
-        logger.info("Pipeline killed by user.")
 
-    # Print or process outputs from change_queue
-    while not change_queue.empty():
-        output = change_queue.get()
-        if output is not None:
-            print(output)
+    t = threading.Thread(target=run_node_manager)
+    t.start()
 
-    logger.info(f"First two stages complete. Rows passed to buffer_queue: {buffer_queue_count}, rows passed to change_queue: {change_queue_count}")
-    print(f"Rows passed to buffer_queue: {buffer_queue_count}")
-    print(f"Rows passed to change_queue: {change_queue_count}")
+    while True:
+        batch = buffer_queue.get()
+        if batch is None:
+            break
+        batches.append(batch)
+    t.join()
+    # Return the slice from 10000 (inclusive) to 30000 (exclusive)
+    return batches[10000:30000]
 
 
 def main():
-    run_first_two_stages()
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    parameters_delta = [0.5, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001]
+    parameters_clock = [3, 6, 8, 12, 16, 20, 24]
+
+    batches = collect_rows()
+
+    futures = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        for delta in parameters_delta:
+            for clock in parameters_clock:
+                futures.append(executor.submit(run_first_two_stages, batches, delta, clock))
+        for future in as_completed(futures):
+            result = future.result()
+            print(result)
 
 if __name__ == "__main__":
     main()
