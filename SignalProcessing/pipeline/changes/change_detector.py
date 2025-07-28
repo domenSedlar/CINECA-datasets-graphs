@@ -7,7 +7,7 @@ logger.setLevel(logging.INFO)
 
 class ChangeLevelDetector:
     STOP_SIGNAL = object()
-    def __init__(self, input_queue, output_queue, delta=0.005, clock=10):  # TODO what are the right parameters?
+    def __init__(self, input_queue, output_queue, delta=0.001, clock=3):
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.delta = delta
