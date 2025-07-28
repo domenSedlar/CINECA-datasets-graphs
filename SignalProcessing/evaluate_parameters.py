@@ -5,19 +5,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COM
 from pipeline.changes.change_detector import ChangeLevelDetector
 from pipeline.file_reading.node_manager import NodeManager
 import logging
+import gc
 
-def run_first_two_stages(batches, delta=0.005, clock=10, stop_event=None, change_queues=None):
+def run_first_two_stages(batches, delta=0.005, clock=10, stop_event=None):
     """
     Runs only the ChangeLevelDetector stage using the provided batches.
     Tracks and prints how many rows (batches) are passed to both queues.
     Returns the result string and elapsed time for this parameter set.
     If stop_event is set, will break early and send None to the change_queue.
-    If change_queues is provided, appends the change_queue for external signaling.
     """
     buffer_queue = queue.Queue()
     change_queue = queue.Queue()
-    if change_queues is not None:
-        change_queues.append(change_queue)
 
     # Counters for batches passed to each queue
     change_queue_count = 0
@@ -30,13 +28,13 @@ def run_first_two_stages(batches, delta=0.005, clock=10, stop_event=None, change
             change_queue_count += 1
             if change_queue_count % 100 == 0:
                 logging.info(f"{change_queue_count} items have been placed into change_queue.")
-        orig_change_put(item)
     change_queue.put = change_put_counted
 
     # Feed the batches into buffer_queue
     for batch in batches:
         if stop_event is not None and stop_event.is_set():
             buffer_queue.put(None)
+            print(delta, clock, None, None, flush=True, sep=";")
             return delta, clock, None, None  # Return early if stopped
         buffer_queue.put(batch)
     buffer_queue.put(None)  # Signal end of input
@@ -51,9 +49,10 @@ def run_first_two_stages(batches, delta=0.005, clock=10, stop_event=None, change
         ratio = change_queue_count / batches_processed
     else:
         ratio = None
-    return delta, clock, ratio, elapsed
+    gc.collect()
+    print(delta, clock, ratio, elapsed, flush=True, sep=";")
 
-def collect_rows(limit=10000, skip_rows=0, stop_event=None):
+def collect_rows(limit=10000, skip_rows=10000, stop_event=None):
     """
     Runs NodeManager and collects all batches. Returns the list of batches from index 10000 (inclusive) to 10000+limit (exclusive).
     If stop_event is set, will break early.
@@ -88,14 +87,19 @@ def evaluate_parameters():
 
     stop_event = threading.Event()
     try:
-        batches = collect_rows(limit=5000, stop_event=stop_event)
+        batches = collect_rows(limit=10000, stop_event=stop_event)
     except KeyboardInterrupt:
         logging.info("KeyboardInterrupt received! Sending stop signal to all change queues...")
         stop_event.set()
         raise
 
+    for delta in parameters_delta:
+        for clock in parameters_clock:
+            run_first_two_stages(batches, delta, clock, stop_event)
+
+    return
+
     futures = []
-    change_queues = []
     done = set()
 
     with ThreadPoolExecutor(max_workers=8) as executor:
@@ -103,7 +107,7 @@ def evaluate_parameters():
             # Submit all tasks
             for delta in parameters_delta:
                 for clock in parameters_clock:
-                    futures.append(executor.submit(run_first_two_stages, batches, delta, clock, stop_event, change_queues))
+                    futures.append(executor.submit(run_first_two_stages, batches, delta, clock, stop_event))
 
             # Poll for results
             while len(done) < len(futures):
@@ -113,7 +117,7 @@ def evaluate_parameters():
                         if future not in done:
                             try:
                                 result = future.result()
-                                print(result)
+                                logging.info(result)
                             except Exception as e:
                                 logging.error(f"Exception in worker thread: {e}")
                             done.add(future)
