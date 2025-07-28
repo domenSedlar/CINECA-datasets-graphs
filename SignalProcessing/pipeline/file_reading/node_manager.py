@@ -119,6 +119,9 @@ class NodeManager:
 
         start_time = time.time()
         last_log_time = start_time
+
+        log_frequency = 1
+
         while active_nodes:
             if stop_event and stop_event.is_set():
                 logger.info("NodeManager.iterate_batches detected stop_event set, breaking loop.")
@@ -140,12 +143,14 @@ class NodeManager:
                 self.buffer.put(copy.deepcopy(batch))
                 # print(batch)
                 rows_processed += 1
-                if rows_processed % 1000 == 0:
+                if rows_processed % log_frequency == 0:
                     now = time.time()
                     interval = now - last_log_time
                     total = now - start_time
-                    logger.info(f"NodeManager: Processed {rows_processed} batches. Last 1000 in {interval:.2f}s, total elapsed {total:.2f}s.")
+                    logger.info(f"NodeManager: Processed {rows_processed} batches. Last {log_frequency} in {interval:.2f}s, total elapsed {total:.2f}s.")
                     last_log_time = now
+                    if log_frequency < 1000:
+                        log_frequency *= 10
                 if limit_rows is not None and rows_processed >= limit_rows:
                     break
         self.buffer.put(None)
