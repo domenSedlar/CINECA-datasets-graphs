@@ -165,10 +165,10 @@ class NodeManager:
             if batch:
                 if self.buffer.full():
                     logger.info("buffer is full")
-                    self.buffer.put(copy.deepcopy(batch))
+                    self.buffer.put(copy.copy(batch))
                     logger.info("continuing")
                 else:
-                    self.buffer.put(copy.deepcopy(batch))
+                    self.buffer.put(copy.copy(batch))
                 # print(batch)
                 rows_processed += 1
 

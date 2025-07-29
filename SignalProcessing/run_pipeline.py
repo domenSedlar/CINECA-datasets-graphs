@@ -12,16 +12,16 @@ from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
 def run():
-    limit_nodes = 1
+    limit_nodes = None
     delta=0.5
     clock=3
     bq_max_size=50
-    rows_in_mem=10
+    rows_in_mem=20
 
     vars_to_log = ['limit_nodes', 'delta', 'clock', 'bq_max_size', 'rows_in_mem']
     log_message = ""
     for var in vars_to_log:
-        log_message += var + str(locals()[var]) + ", "
+        log_message += var + ": " + str(locals()[var]) + ", "
     logger.info(log_message)
 
     # Initialize memory monitor
