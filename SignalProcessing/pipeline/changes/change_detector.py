@@ -4,6 +4,7 @@ from common.logger import Logger
 import psutil
 import os
 
+from common.my_timer import Timer
 from common.memory_utils import log_memory_usage
 from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
@@ -23,6 +24,7 @@ class ChangeLevelDetector:
         self.filtered_count = 0
         self.total_count = 0
         self.drift_count = 0
+        self.t = Timer()
 
     def _add_to_queue(self, node_id, sensor_id, reading):
         if node_id not in self.queue:
@@ -62,6 +64,7 @@ class ChangeLevelDetector:
         batch: dict mapping node_id -> node_data, where node_data is a dict with keys 'timestamp', 'sensor_data' (dict of sensor -> value)
         For each (node, sensor), update ADWIN and median. If drift is detected for any pair, emit a list of dicts with sensor, node, median, and timestamp for all pairs.
         """
+        self.t.start()
         drift_detected = False
         drift_pairs = set()
         self.total_count += 1
@@ -108,7 +111,9 @@ class ChangeLevelDetector:
                     'timestamp': timestamp,
                     'rack_id': rack_id
                 })
-            
+
+            self.t.end()
+
             if self.output_queue.full():
                 logger.info("output queue full...")
                 self.output_queue.put(output)
@@ -125,6 +130,7 @@ class ChangeLevelDetector:
         if self._batch_count % 100 == 0:
             filter_rate = (self.drift_count / self.total_count * 100) if self.total_count > 0 else 0
             logger.debug(f"[filtering] {self.drift_count}/{self.total_count} ({filter_rate:.1f}% passed through)")
+            logger.debug(f"[time] {self.t.get_avg()}s per one reading")
 
     def run(self, timeout=0, stop_event=None):
         """

@@ -9,7 +9,7 @@ from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
 class NodeSensorManager:
-    def __init__(self, node_id, tar_path, rack_id, current_time=None, sensor_columns=None, timestamp_col='timestamp', interval_seconds=60*15, expected_rows=None): # manages sensor data for a single node
+    def __init__(self, node_id, tar_path, rack_id, current_time=None, sensor_columns=None, timestamp_col='timestamp', interval_seconds=60*15, expected_rows=None, rows_in_mem=10): # manages sensor data for a single node
         self.node_id = node_id
         self.tar_path = tar_path
         self.rack_id = rack_id
@@ -26,9 +26,9 @@ class NodeSensorManager:
         self.sensor_columns = sensor_columns
         self.expected_rows = expected_rows
         self.processed_rows = 0
-        self._prepare_generators()
+        self._prepare_generators(rows_in_mem)
 
-    def _prepare_generators(self):
+    def _prepare_generators(self, rows_in_mem):
         import tarfile
         import pyarrow.parquet as pq
         import gc
@@ -81,11 +81,11 @@ class NodeSensorManager:
                 self.sensor_columns = [col for col in all_columns if col != self.timestamp_col][:3]
             
             # Use pyarrow streaming to avoid memory mapping
-            def row_generator(pq_file):
+            def row_generator(pq_file, batch_size=rows_in_mem):
                 pq_file  # Make pq_file accessible in this function
                 try:
                     # Read in very small chunks using pyarrow iter_batches
-                    for batch in pq_file.iter_batches(batch_size=10, columns=[self.timestamp_col] + self.sensor_columns):
+                    for batch in pq_file.iter_batches(batch_size=batch_size, columns=[self.timestamp_col] + self.sensor_columns):
                         batch_df = batch.to_pandas()
                         for _, row in batch_df.iterrows():
                             yield row

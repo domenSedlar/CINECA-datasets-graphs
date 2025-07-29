@@ -19,7 +19,7 @@ from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
 class NodeManager:
-    def __init__(self, buffer: Queue, tarfiles_path='./TarFiles/', interval_seconds=60*15, limit_nodes=None):
+    def __init__(self, buffer: Queue, tarfiles_path='./TarFiles/', interval_seconds=60*15, limit_nodes=None, rows_in_mem=10):
         self.tarfiles_path = tarfiles_path # only read the first 2 racks for testing
         self.interval_seconds = interval_seconds
         self.buffer = buffer
@@ -101,7 +101,9 @@ class NodeManager:
 
         # Create NodeSensorManager for each node
         self.node_managers = {}
-        for i, node_id, tar_path in enumerate(zip(nodes, tar_paths)):
+        i = 0
+        for node_id, tar_path in zip(nodes, tar_paths):
+            i+=1
             rack_id = os.path.splitext(os.path.basename(tar_path))[0]
             self.node_managers[node_id] = NodeSensorManager(
                 node_id=node_id,
@@ -109,7 +111,8 @@ class NodeManager:
                 rack_id=rack_id,
                 current_time=earliest_timestamp,
                 sensor_columns=self.sensor_columns,
-                interval_seconds=self.interval_seconds
+                interval_seconds=self.interval_seconds,
+                rows_in_mem=rows_in_mem
             )
             if i % 100 == 0:
                 logger.info(f"intilized {i} nodes")
