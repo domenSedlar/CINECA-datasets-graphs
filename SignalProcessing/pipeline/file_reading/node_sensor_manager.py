@@ -3,6 +3,7 @@ import io
 import pandas as pd
 from collections import defaultdict
 from datetime import timedelta
+import ctypes
 
 class NodeSensorManager:
     def __init__(self, node_id, tar_path, rack_id, current_time=None, sensor_columns=None, timestamp_col='timestamp', interval_seconds=60*15, expected_rows=None): # manages sensor data for a single node
@@ -21,30 +22,100 @@ class NodeSensorManager:
         self._prepare_generators()
 
     def _prepare_generators(self):
+        import tarfile
         import pyarrow.parquet as pq
-        # Open the tar file (assume it's named '{node_id}.tar' and located at self.tar_path)
+        import gc
+        import psutil
+        import os
+        import tempfile
+        
+        # Read the specific {node_id}.parquet file using temp files on D: drive
         tar_file_path = f"{self.tar_path}"
         parquet_filename = f"{self.node_id}.parquet"
+        
+        # Monitor memory before processing
+        process = psutil.Process(os.getpid())
+        mem_before = process.memory_info().rss / 1024 / 1024
+        print(f"Node {self.node_id}: Memory before processing: {mem_before:.2f}MB")
+        
         with tarfile.open(tar_file_path, 'r') as tar:
             member = tar.getmember(parquet_filename)
-            file_obj = tar.extractfile(member)
-            parquet_bytes = file_obj.read()
-
-        # Use pyarrow to read the parquet file from bytes
-        table = pq.ParquetFile(io.BytesIO(parquet_bytes))
-
-        if self.sensor_columns is None:
-            # Determine the first 3 sensor columns (excluding timestamp) - for testing we limit to only 3 columns so it runs faster, will be removed soon
-            all_columns = table.schema.names
-            self.sensor_columns = [col for col in all_columns if col != self.timestamp_col][:3]
-
-        def row_generator():
-            for batch in table.iter_batches(batch_size=100, columns=[self.timestamp_col] + self.sensor_columns):
-                batch_df = batch.to_pandas()
-                for _, row in batch_df.iterrows():
-                    yield row
-
-        self.sensor_generator = row_generator() # reads the data when called
+            file_size = member.size
+            print(f"Node {self.node_id}: Processing parquet file of size {file_size/1024/1024:.2f}MB")
+            
+            # Create temp file on D: drive to avoid C: space issues
+            temp_dir = "D:/temp_parquet_files"
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.parquet', dir=temp_dir) as temp_file:
+                # Stream the file content in chunks to avoid loading entire file into memory
+                file_obj = tar.extractfile(member)
+                if file_obj is None:
+                    raise ValueError(f"Could not extract {parquet_filename} from {self.tar_path}")
+                
+                # Copy file in chunks to avoid memory spike
+                chunk_size = 1024 * 1024  # 1MB chunks
+                while True:
+                    chunk = file_obj.read(chunk_size)
+                    if not chunk:
+                        break
+                    temp_file.write(chunk)
+                
+                temp_file.flush()
+                temp_file_path = temp_file.name
+                del file_obj  # Close file handle immediately
+            
+            # Create streaming parquet reader with pyarrow
+            pq_file = pq.ParquetFile(temp_file_path)
+            
+            # Determine sensor columns if not already set
+            if self.sensor_columns is None:
+                all_columns = pq_file.schema.names
+                self.sensor_columns = [col for col in all_columns if col != self.timestamp_col][:3]
+            
+            # Use pyarrow streaming to avoid memory mapping
+            def row_generator(pq_file):
+                pq_file  # Make pq_file accessible in this function
+                try:
+                    # Read in very small chunks using pyarrow iter_batches
+                    for batch in pq_file.iter_batches(batch_size=1, columns=[self.timestamp_col] + self.sensor_columns):
+                        batch_df = batch.to_pandas()
+                        for _, row in batch_df.iterrows():
+                            yield row
+                        # Force garbage collection after each batch
+                        gc.collect()
+                        del batch_df
+                        # Force C library to release memory back to OS periodically
+                        try:
+                            ctypes.CDLL("libc.so.6").malloc_trim(0)
+                        except Exception as e:
+                            pass  # malloc_trim not available on this system
+                finally:
+                    # Clean up temp file immediately after processing
+                    try:
+                        del pq_file  # Explicitly delete pyarrow file object
+                        gc.collect()  # Force cleanup
+                        # Force C library to release memory back to OS
+                        try:
+                            ctypes.CDLL("libc.so.6").malloc_trim(0)
+                        except Exception as e:
+                            pass  # malloc_trim not available on this system
+                        # Delete temp file
+                        try:
+                            os.unlink(temp_file_path)
+                        except:
+                            pass
+                    except:
+                        pass
+            
+            self.sensor_generator = row_generator(pq_file)
+            
+            # Force garbage collection after setup
+            gc.collect()
+            
+            # Monitor memory after processing
+            mem_after = process.memory_info().rss / 1024 / 1024
+            print(f"Node {self.node_id}: Memory after processing: {mem_after:.2f}MB (delta: {mem_after - mem_before:.2f}MB)")
 
     def _sanitize_sensor_values(self, row): # if the value is None, use the last valid value from current_readings when it exists
         import math

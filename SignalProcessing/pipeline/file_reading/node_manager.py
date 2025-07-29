@@ -9,7 +9,10 @@ from simple_queue import SimpleQueue as Queue
 import json
 import time
 import copy
-
+import psutil
+import ctypes
+import gc
+import platform
 
 import logging
 logging.basicConfig(
@@ -19,11 +22,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger("run_pipeline")
 
+def log_memory_usage(context="NodeManager.iterate_batches", buffer=None, var_name="buffer"):
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    queue_size = buffer.qsize() if buffer is not None else 'NA'
+    print(f"[MEMORY]\t\t{context}\t\tRSS={mem_info.rss/1024/1024:.2f}MB\t\tVMS={mem_info.vms/1024/1024:.2f}MB\t\tThreads={process.num_threads()}\t\t{var_name}={queue_size}", flush=True)
+
+def force_memory_cleanup():
+    """Cross-platform memory cleanup"""
+    # Force garbage collection
+    gc.collect()
+    
+    # Platform-specific memory release
+    if platform.system() == "Linux":
+        try:
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass  # malloc_trim not available
+    elif platform.system() == "Windows":
+        try:
+            # Windows equivalent - use kernel32 to release memory
+            kernel32 = ctypes.windll.kernel32
+            kernel32.SetProcessWorkingSetSize(-1, -1, -1)
+        except Exception:
+            pass  # Windows memory management not available
+
 class NodeManager:
     def __init__(self, buffer: Queue, tarfiles_path='./TarFiles/', interval_seconds=60*15):
         logger = logging.getLogger(__name__)
 
-        self.tarfiles_path = tarfiles_path
+        self.tarfiles_path = tarfiles_path # only read the first 2 racks for testing
         self.interval_seconds = interval_seconds
         self.buffer = buffer
         self.sensor_columns = None # limits which sensors we read
@@ -85,6 +113,8 @@ class NodeManager:
                                     max_file = f'{tar_filename}:{member.name}'
                             except Exception as e:
                                 logger.warning(f"Failed to read timestamp from {member.name} in {tar_path}: {e}")
+                if(len(nodes) < -1):
+                    break
             except Exception as e:
                 logger.error(f"Error processing tar file {tar_path}: {e}")
 
@@ -98,11 +128,15 @@ class NodeManager:
             self.sensor_columns = sensor_columns
 
         self.node_managers = {}
-        for node, tar_path in zip(nodes, tar_paths):
-            rack_id = os.path.splitext(os.path.basename(tar_path))[0]
-            expected_rows = node_expected_rows.get(node, None)
-            manager = NodeSensorManager(node, tar_path, rack_id=rack_id, current_time=earliest_timestamp, sensor_columns=self.sensor_columns, interval_seconds=self.interval_seconds, expected_rows=expected_rows)
-            self.node_managers[node] = manager
+        for node_id, tar_path in zip(nodes, tar_paths):
+            self.node_managers[node_id] = NodeSensorManager(
+                node_id, tar_path, self.interval_seconds, self.sensor_columns
+            )
+            # Force memory cleanup after creating each manager
+            force_memory_cleanup()
+        
+        # Force garbage collection after all managers are created
+        force_memory_cleanup()
 
         # self.node_expected_rows = node_expected_rows
         # self.node_processed_rows = node_processed_rows
@@ -122,6 +156,7 @@ class NodeManager:
 
         log_frequency = 1
 
+        batch_count = 0
         while active_nodes:
             if stop_event and stop_event.is_set():
                 logger.info("NodeManager.iterate_batches detected stop_event set, breaking loop.")
@@ -143,6 +178,11 @@ class NodeManager:
                 self.buffer.put(copy.deepcopy(batch))
                 # print(batch)
                 rows_processed += 1
+                if batch_count % 50 == 0:  # Reduced from 100 for more frequent monitoring
+                    log_memory_usage(f"NodeManager.iterate_batches batch {batch_count}", buffer=self.buffer, var_name="buffer_queue")
+                    # Force memory cleanup periodically
+                    force_memory_cleanup()
+                batch_count += 1
                 if rows_processed % log_frequency == 0:
                     now = time.time()
                     interval = now - last_log_time

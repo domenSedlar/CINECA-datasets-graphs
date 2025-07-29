@@ -1,13 +1,22 @@
 from river.drift import ADWIN
 import logging
 from common.logger import Logger
+import psutil
+import os
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+def log_memory_usage(context="ChangeLevelDetector.run", input_queue=None, output_queue=None, input_var_name="input_queue", output_var_name="output_queue"):
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    in_size = input_queue.qsize() if input_queue is not None else 'NA'
+    out_size = output_queue.qsize() if output_queue is not None else 'NA'
+    print(f"[MEMORY]\t\t{context}\t\tRSS={mem_info.rss/1024/1024:.2f}MB\t\tVMS={mem_info.vms/1024/1024:.2f}MB\t\tThreads={process.num_threads()}\t\t{input_var_name}={in_size}\t\t{output_var_name}={out_size}", flush=True)
+
 class ChangeLevelDetector:
     STOP_SIGNAL = object()
-    def __init__(self, input_queue, output_queue, delta=0.001, clock=3):
+    def __init__(self, input_queue, output_queue, delta=0.5, clock=3):  # Increased delta from 0.001 to 0.01
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.delta = delta
@@ -17,7 +26,9 @@ class ChangeLevelDetector:
         self.queue = {} # for each node, sensor pair, contains a list of the last few readings
         from river.stats import Quantile
         self.Quantile = Quantile
-
+        self.filtered_count = 0
+        self.total_count = 0
+        self.drift_count = 0
 
     def _add_to_queue(self, node_id, sensor_id, reading):
         if node_id not in self.queue:
@@ -59,6 +70,8 @@ class ChangeLevelDetector:
         """
         drift_detected = False
         drift_pairs = set()
+        self.total_count += 1
+        
         # First pass: update all, check for drift
         for node, node_data in batch.items():
             timestamp = node_data.get('timestamp')
@@ -90,6 +103,7 @@ class ChangeLevelDetector:
 
         # If any drift detected, output all medians for all pairs
         if drift_detected:
+            self.drift_count += 1
             output = []
             for (node, sensor), quantile in self.medians.items():
                 median = self._get_median(node, sensor)
@@ -109,7 +123,16 @@ class ChangeLevelDetector:
                 })
             
             self.output_queue.put(output)
-            # logger.info(f"Pushed {len(output)} outputs to output_queue")
+        
+        # Log filtering effectiveness every 1000 batches
+        if hasattr(self, '_batch_count'):
+            self._batch_count += 1
+        else:
+            self._batch_count = 1
+            
+        if self._batch_count % 1000 == 0:
+            filter_rate = (self.drift_count / self.total_count * 100) if self.total_count > 0 else 0
+            logger.info(f"ChangeLevelDetector filtering: {self.drift_count}/{self.total_count} ({filter_rate:.1f}% passed through)")
 
     def run(self, timeout=0, stop_event=None):
         """
@@ -117,6 +140,7 @@ class ChangeLevelDetector:
         and processes all sensors in batch. Passes None to output_queue when done.
         If stop_event is provided (threading.Event), will break if stop_event.is_set().
         """
+        batch_count = 0
         while True:
             if stop_event is not None and stop_event.is_set():
                 logger.info("ChangeLevelDetector.run detected stop_event set, breaking loop.")
@@ -126,4 +150,7 @@ class ChangeLevelDetector:
             if reading is None:
                 self.output_queue.put(None)
                 break
-            self.process_batch(reading) 
+            self.process_batch(reading)
+            batch_count += 1
+            if batch_count % 100 == 0:
+                log_memory_usage(f"ChangeLevelDetector.run batch {batch_count}", input_queue=self.input_queue, output_queue=self.output_queue, input_var_name="buffer_queue", output_var_name="change_queue") 

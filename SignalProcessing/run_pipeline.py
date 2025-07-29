@@ -4,6 +4,7 @@ from pipeline.file_reading.node_manager import NodeManager
 from pipeline.changes.change_detector import ChangeLevelDetector
 from pipeline.state_builder import StateBuilder
 from pipeline.persist import StatePersister
+from pipeline.memory_utils import MemoryMonitor
 import logging
 import os
 import datetime
@@ -16,10 +17,14 @@ logging.basicConfig(
 logger = logging.getLogger("run_pipeline")
 
 def run():
-        # Set up queues for each stage
-    buffer_queue = queue.Queue()
-    change_queue = queue.Queue()
-    state_queue = queue.Queue()
+    # Initialize memory monitor
+    memory_monitor = MemoryMonitor(log_interval=50)
+    
+        # Set up queues for each stage with size limits for backpressure
+    # Create queues with smaller sizes for more aggressive memory management
+    buffer_queue = queue.Queue(maxsize=50)     # NodeManager → ChangeLevelDetector (reduced from 200)
+    change_queue = queue.Queue(maxsize=25)     # ChangeLevelDetector → StateBuilder (reduced from 100)
+    state_queue = queue.Queue(maxsize=100)     # StateBuilder → StatePersister (reduced from 500)
 
     output_file = f'./outputs/threaded_pipeline_state_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.json'
 
@@ -50,6 +55,9 @@ def run():
 
     try:
         while any(t.is_alive() for t in threads):
+            # Monitor memory usage
+            memory_monitor.check_memory("Pipeline-Main")
+            
             for t in threads:
                 t.join(timeout=0.5)
     except KeyboardInterrupt:
@@ -64,9 +72,15 @@ def run():
             t.join(timeout=5)
         logger.info("Pipeline killed by user.")
 
+    # Print final memory summary
+    summary = memory_monitor.get_summary()
     logger.info(f"Pipeline complete. Output written to {output_file}")
-
-
+    logger.info(f"Memory Summary: Initial={summary['initial_memory']:.2f}MB, "
+                f"Final={summary['current_memory']:.2f}MB, "
+                f"Peak={summary['peak_memory']:.2f}MB, "
+                f"Total Δ={summary['total_delta']:+.2f}MB, "
+                f"Stable={summary['memory_stable']}, "
+                f"Elapsed={summary['elapsed_time']:.1f}s")
 
 # Parameter sweep and evaluation logic has been moved to evaluate_parameters.py
 # To run parameter sweeps, use: python evaluate_parameters.py
