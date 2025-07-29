@@ -11,6 +11,7 @@ class GraphBuilder:
         
     def build_graph_r_n_sg_s(self, state): # r_n_sg_s: rack_node_sensorGroup_sensor
         graph = nx.Graph()
+        rack_nodes = []  # Track all rack nodes to connect them later
         
         # Process each node in the state
         for node_id, node_data in state.items():
@@ -21,6 +22,9 @@ class GraphBuilder:
             # R1 (Rack) node
             rack_node = f"R{rack_id}"
             graph.add_node(rack_node, type='rack', id=rack_id)
+            # Only add rack node once to avoid duplicates
+            if rack_node not in rack_nodes:
+                rack_nodes.append(rack_node)
             
             # N0 (Node) node
             node_node = f"N{node_id}"
@@ -51,6 +55,11 @@ class GraphBuilder:
                         graph.add_node(sensor_node, type=sensor_type + "_sensor", 
                                     name=sensor_name, value=sensor_value)
                         graph.add_edge(sensor_type + "_n" + str(node_id), sensor_node)
+
+        # Connect all racks together in a clique
+        for i in range(len(rack_nodes)):
+            for j in range(i + 1, len(rack_nodes)):
+                graph.add_edge(rack_nodes[i], rack_nodes[j])
 
         return graph
     
@@ -239,11 +248,34 @@ class GraphBuilder:
         
         # Position rack nodes at the top
         for i, node in enumerate(rack_nodes):
-            pos[node] = (0, 4)
+            pos[node] = (i * 3 - len(rack_nodes) * 1.5 + 1.5, 4)
         
         # Position node nodes below racks
         for i, node in enumerate(node_nodes):
-            pos[node] = (i * 2 - len(node_nodes) + 1, 3)
+            # Find which rack this node belongs to
+            parent_rack = None
+            for edge in graph.edges():
+                if edge[1] == node and graph.nodes[edge[0]].get('type') == 'rack':
+                    parent_rack = edge[0]
+                    break
+                elif edge[0] == node and graph.nodes[edge[1]].get('type') == 'rack':
+                    parent_rack = edge[1]
+                    break
+            
+            if parent_rack:
+                # Position nodes below their parent rack
+                rack_x = pos[parent_rack][0]
+                # Calculate offset based on node index within this rack
+                nodes_in_rack = [n for n in node_nodes if any(
+                    (e[0] == n and e[1] == parent_rack) or (e[1] == n and e[0] == parent_rack)
+                    for e in graph.edges()
+                )]
+                node_index = nodes_in_rack.index(node)
+                offset = (node_index - len(nodes_in_rack) / 2 + 0.5) * 1.5
+                pos[node] = (rack_x + offset, 3)
+            else:
+                # Fallback positioning
+                pos[node] = (i * 2 - len(node_nodes) + 1, 3)
         
         # Position group nodes below nodes
         for i, node in enumerate(group_nodes):
