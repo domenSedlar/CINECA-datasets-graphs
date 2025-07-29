@@ -3,7 +3,7 @@ from collections import defaultdict
 from queue import Queue
 
 class StateFileReader:
-    def __init__(self, state_file, buffer):
+    def __init__(self, buffer, state_file='StateFiles/threaded_pipeline_state.json'):
         self.state_file = state_file
         self.buffer = buffer
 

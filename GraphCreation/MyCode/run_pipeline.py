@@ -1,29 +1,51 @@
 import sys
 import os
+import threading
+import time
+from queue import Queue
+
 sys.path.append(os.path.join(os.path.dirname(__file__), 'pipeline'))
 
-from pipeline.read_and_emit import read_state_file, STATE_FILE
-from pipeline.graph_builder import build_graph_for_node
-from pipeline.graph_emitter import emit_graphs
-from pipeline.persist import persist_graphs
+from pipeline.read_and_emit import StateFileReader
+from pipeline.graph_builder import GraphBuilder
+from pipeline.persist import GraphStorage
 
 import argparse
 
 def main():
-    parser = argparse.ArgumentParser(description='Run the state-to-graph pipeline.')
-    parser.add_argument('--state-file', type=str, default=STATE_FILE, help='Path to the state file (default: ../state.json)')
-    parser.add_argument('--output-dir', type=str, default='output_graphs', help='Directory to save output graphs')
-    args = parser.parse_args()
+    # Create queues
+    reader_output_queue = Queue()
+    builder_output_queue = Queue()
 
-    print(f'Reading state file: {args.state_file}')
-    node_series = read_state_file(args.state_file)
-    print('Building graphs for each node...')
-    graphs = {node_id: build_graph_for_node(series) for node_id, series in node_series.items()}
-    print('Emitting graphs...')
-    emitted_graphs = emit_graphs(graphs)
-    print(f'Persisting graphs to {args.output_dir}...')
-    persist_graphs(emitted_graphs, output_dir=args.output_dir)
-    print('Pipeline completed successfully.')
+    # Create objects
+    reader = StateFileReader(buffer=reader_output_queue)
+    builder = GraphBuilder(buffer=reader_output_queue, output_queue=builder_output_queue)
+    import datetime
+    unique_run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    unique_filename = f'all_graphs_{unique_run_id}.pkl'
+    storage = GraphStorage(input_queue=builder_output_queue, filename=unique_filename)
+
+    # Create threads
+    threads = [
+        threading.Thread(target=reader.read_and_emit, name="StateFileReaderThread"),
+        threading.Thread(target=builder.build_graph, name="GraphBuilderThread"),
+        threading.Thread(target=storage.run, name="GraphStorageThread"),
+    ]
+
+    # Start threads
+    for thread in threads:
+        thread.start()
+
+    try:
+        while any(thread.is_alive() for thread in threads):
+            time.sleep(0.5)
+
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt received! Setting stop event and sending sentinels.")
+        for _ in range(2):
+            reader_output_queue.put(None)
+            builder_output_queue.put(None)
+
 
 if __name__ == '__main__':
     main() 

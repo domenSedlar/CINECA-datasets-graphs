@@ -5,8 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class GraphBuilder:
-    def __init__(self, state_file, buffer, output_queue):
-        self.state_file = state_file
+    def __init__(self, buffer, output_queue):
         self.buffer = buffer
         self.output_queue = output_queue
         
@@ -60,14 +59,12 @@ class GraphBuilder:
         while True:
             state = self.buffer.get()
             if state is None:
+                print("No more state data to process. Exiting.")
+                self.output_queue.put(None)
                 break
                         
             # Put the graph in the output queue
             self.output_queue.put(self.build_graph_nn_s(state))
-            
-            print(f"Built graph with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges")
-            print(f"Nodes: {list(graph.nodes())}")
-            print(f"Edges: {list(graph.edges())}")
 
     def build_graph_nn_s(self, state): # nn_s: node_sensor, all nodes connected to each other
         graph = nx.Graph()
