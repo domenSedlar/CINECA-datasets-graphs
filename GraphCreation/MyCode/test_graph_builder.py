@@ -54,7 +54,7 @@ def test_graph_builder():
     output_queue = Queue()
     
     # Create graph builder
-    graph_builder = GraphBuilder(None, input_buffer, output_queue)
+    graph_builder = GraphBuilder(input_buffer, output_queue)
     
     # Test hierarchical graph
     print("=== Testing Hierarchical Graph (r_n_sg_s) ===")
