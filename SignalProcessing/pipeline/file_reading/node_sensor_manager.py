@@ -14,7 +14,11 @@ class NodeSensorManager:
         self.interval = timedelta(seconds=interval_seconds)
         self.sensor_generator = None
         self.current_readings = None
-        self.current_time = current_time - self.interval
+        # Only subtract interval if current_time is not None
+        if current_time is not None:
+            self.current_time = current_time - self.interval
+        else:
+            self.current_time = None
         self._first_reading_yielded = False if current_time is None else True
         self.sensor_columns = sensor_columns
         self.expected_rows = expected_rows

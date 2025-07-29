@@ -113,7 +113,7 @@ class NodeManager:
                                     max_file = f'{tar_filename}:{member.name}'
                             except Exception as e:
                                 logger.warning(f"Failed to read timestamp from {member.name} in {tar_path}: {e}")
-                if(len(nodes) < -1):
+                if(len(nodes) > 1):
                     break
             except Exception as e:
                 logger.error(f"Error processing tar file {tar_path}: {e}")
@@ -127,10 +127,17 @@ class NodeManager:
             sensor_columns = [col for col in all_columns if col != 'timestamp' and not (col.endswith('_min') or col.endswith('_max') or col.endswith('_std'))]
             self.sensor_columns = sensor_columns
 
+        # Create NodeSensorManager for each node
         self.node_managers = {}
         for node_id, tar_path in zip(nodes, tar_paths):
+            rack_id = os.path.splitext(os.path.basename(tar_path))[0]
             self.node_managers[node_id] = NodeSensorManager(
-                node_id, tar_path, self.interval_seconds, self.sensor_columns
+                node_id=node_id,
+                tar_path=tar_path,
+                rack_id=rack_id,
+                current_time=earliest_timestamp,
+                sensor_columns=self.sensor_columns,
+                interval_seconds=self.interval_seconds
             )
             # Force memory cleanup after creating each manager
             force_memory_cleanup()
