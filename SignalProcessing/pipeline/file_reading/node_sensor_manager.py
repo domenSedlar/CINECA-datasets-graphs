@@ -5,6 +5,9 @@ from collections import defaultdict
 from datetime import timedelta
 import ctypes
 
+from common.logger import Logger
+logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
+
 class NodeSensorManager:
     def __init__(self, node_id, tar_path, rack_id, current_time=None, sensor_columns=None, timestamp_col='timestamp', interval_seconds=60*15, expected_rows=None): # manages sensor data for a single node
         self.node_id = node_id
@@ -40,12 +43,12 @@ class NodeSensorManager:
         # Monitor memory before processing
         process = psutil.Process(os.getpid())
         mem_before = process.memory_info().rss / 1024 / 1024
-        print(f"Node {self.node_id}: Memory before processing: {mem_before:.2f}MB")
+        logger.debug(f"Node {self.node_id}: Memory before processing: {mem_before:.2f}MB")
         
         with tarfile.open(tar_file_path, 'r') as tar:
             member = tar.getmember(parquet_filename)
             file_size = member.size
-            print(f"Node {self.node_id}: Processing parquet file of size {file_size/1024/1024:.2f}MB")
+            logger.debug(f"Node {self.node_id}: Processing parquet file of size {file_size/1024/1024:.2f}MB")
             
             # Create temp file on D: drive to avoid C: space issues
             temp_dir = "D:/temp_parquet_files"
@@ -82,7 +85,7 @@ class NodeSensorManager:
                 pq_file  # Make pq_file accessible in this function
                 try:
                     # Read in very small chunks using pyarrow iter_batches
-                    for batch in pq_file.iter_batches(batch_size=1, columns=[self.timestamp_col] + self.sensor_columns):
+                    for batch in pq_file.iter_batches(batch_size=10, columns=[self.timestamp_col] + self.sensor_columns):
                         batch_df = batch.to_pandas()
                         for _, row in batch_df.iterrows():
                             yield row
@@ -119,7 +122,7 @@ class NodeSensorManager:
             
             # Monitor memory after processing
             mem_after = process.memory_info().rss / 1024 / 1024
-            print(f"Node {self.node_id}: Memory after processing: {mem_after:.2f}MB (delta: {mem_after - mem_before:.2f}MB)")
+            logger.debug(f"Node {self.node_id}: Memory after processing: {mem_after:.2f}MB (delta: {mem_after - mem_before:.2f}MB)")
 
     def _sanitize_sensor_values(self, row): # if the value is None, use the last valid value from current_readings when it exists
         import math

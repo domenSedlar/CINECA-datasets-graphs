@@ -9,7 +9,8 @@ import os
 import logging
 import time
 
-logger = logging.getLogger(__name__)
+from common.logger import Logger
+logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
 def force_memory_cleanup():
     """Cross-platform memory cleanup"""
@@ -36,7 +37,7 @@ def log_memory_usage(context="", **kwargs):
     mem_info = process.memory_info()
     
     # Build the log message
-    parts = [f"[MEMORY]\t\t{context}\t\tRSS={mem_info.rss/1024/1024:.2f}MB\t\tVMS={mem_info.vms/1024/1024:.2f}MB\t\tThreads={process.num_threads()}"]
+    parts = [f"[MEMORY]\t\t{context}\t\tRSS={mem_info.rss/1024/1024:.2f}MB\t\tVMS={mem_info.vms/1024/1024:.2f}MB"]
     
     # Add any additional variables
     for var_name, var_value in kwargs.items():
@@ -45,7 +46,7 @@ def log_memory_usage(context="", **kwargs):
         else:
             parts.append(f"{var_name}={var_value}")
     
-    print("\t\t".join(parts), flush=True)
+    logger.info("\t\t".join(parts))
 
 def monitor_memory_growth(initial_memory=None):
     """Monitor memory growth and return delta"""
@@ -58,21 +59,12 @@ def monitor_memory_growth(initial_memory=None):
     delta = current_memory - initial_memory
     return current_memory, delta
 
-def create_memory_efficient_copy(obj, use_deep_copy=False):
-    """Create a memory-efficient copy of an object"""
-    if use_deep_copy:
-        import copy
-        return copy.deepcopy(obj)
-    else:
-        # For dictionaries, use dict() constructor for shallow copy
-        if isinstance(obj, dict):
-            return dict(obj)
-        # For lists, use list() constructor for shallow copy
-        elif isinstance(obj, list):
-            return list(obj)
-        # For other types, return as-is (assuming immutable or safe to share)
-        else:
-            return obj
+def get_queue_state(dict_qName_q):
+    m = ""
+    for q_nm, q in dict_qName_q.items():
+        m += str(q_nm) + ": " + str(q.qsize()) + ", "
+    
+    return m
 
 class MemoryMonitor:
     """Monitor memory usage over time and detect patterns"""

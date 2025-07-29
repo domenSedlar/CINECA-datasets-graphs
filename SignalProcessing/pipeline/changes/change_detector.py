@@ -4,15 +4,9 @@ from common.logger import Logger
 import psutil
 import os
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-def log_memory_usage(context="ChangeLevelDetector.run", input_queue=None, output_queue=None, input_var_name="input_queue", output_var_name="output_queue"):
-    process = psutil.Process(os.getpid())
-    mem_info = process.memory_info()
-    in_size = input_queue.qsize() if input_queue is not None else 'NA'
-    out_size = output_queue.qsize() if output_queue is not None else 'NA'
-    print(f"[MEMORY]\t\t{context}\t\tRSS={mem_info.rss/1024/1024:.2f}MB\t\tVMS={mem_info.vms/1024/1024:.2f}MB\t\tThreads={process.num_threads()}\t\t{input_var_name}={in_size}\t\t{output_var_name}={out_size}", flush=True)
+from common.memory_utils import log_memory_usage
+from common.logger import Logger
+logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
 class ChangeLevelDetector:
     STOP_SIGNAL = object()
@@ -90,16 +84,9 @@ class ChangeLevelDetector:
                 self._add_to_median(node, sensor, value)
                 self._add_to_queue(node, sensor, value)
 
-                if sensor == 'ambient_avg' and node == 3:
-                    # print(value, "\t\t\t", timestamp)
-                    pass
                 if adwin.drift_detected:
                     drift_detected = True
                     drift_pairs.add(key)
-                    logger.debug(f"Drift detected value: {value}, node: {node}, sensor: {sensor}")
-                    if sensor == 'ambient_avg' and node == 3:
-                        continue
-                        #print("detected")
 
         # If any drift detected, output all medians for all pairs
         if drift_detected:
@@ -122,7 +109,12 @@ class ChangeLevelDetector:
                     'rack_id': rack_id
                 })
             
-            self.output_queue.put(output)
+            if self.output_queue.full():
+                logger.info("output queue full...")
+                self.output_queue.put(output)
+                logger.info("continuing")
+            else:
+                self.output_queue.put(output)
         
         # Log filtering effectiveness every 1000 batches
         if hasattr(self, '_batch_count'):
@@ -130,9 +122,9 @@ class ChangeLevelDetector:
         else:
             self._batch_count = 1
             
-        if self._batch_count % 1000 == 0:
+        if self._batch_count % 100 == 0:
             filter_rate = (self.drift_count / self.total_count * 100) if self.total_count > 0 else 0
-            logger.info(f"ChangeLevelDetector filtering: {self.drift_count}/{self.total_count} ({filter_rate:.1f}% passed through)")
+            logger.debug(f"[filtering] {self.drift_count}/{self.total_count} ({filter_rate:.1f}% passed through)")
 
     def run(self, timeout=0, stop_event=None):
         """
@@ -146,11 +138,16 @@ class ChangeLevelDetector:
                 logger.info("ChangeLevelDetector.run detected stop_event set, breaking loop.")
                 self.output_queue.put(None)
                 break
-            reading = self.input_queue.get()
+            if self.input_queue.empty():
+                logger.info("waiting for readings...")
+                reading = self.input_queue.get()
+                logger.info("got readings")
+            else:
+                reading = self.input_queue.get()
             if reading is None:
                 self.output_queue.put(None)
                 break
             self.process_batch(reading)
             batch_count += 1
             if batch_count % 100 == 0:
-                log_memory_usage(f"ChangeLevelDetector.run batch {batch_count}", input_queue=self.input_queue, output_queue=self.output_queue, input_var_name="buffer_queue", output_var_name="change_queue") 
+                log_memory_usage(f"ChangeLevelDetector.run batch {batch_count}", input_queue=self.input_queue, output_queue=self.output_queue) 

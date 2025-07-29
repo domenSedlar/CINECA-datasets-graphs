@@ -6,19 +6,16 @@ import os
 import ctypes
 import gc
 import platform
-from pipeline.memory_utils import force_memory_cleanup
-logger = logging.getLogger(__name__)
+
+from common.memory_utils import force_memory_cleanup, log_memory_usage, get_queue_state
+
+from common.logger import Logger
+logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
 def default_serializer(obj):
     if isinstance(obj, pd.Timestamp):
         return obj.isoformat()
     return str(obj)
-
-def log_memory_usage(context="StatePersister.run", input_queue=None, var_name="input_queue"):
-    process = psutil.Process(os.getpid())
-    mem_info = process.memory_info()
-    in_size = input_queue.qsize() if input_queue is not None else 'NA'
-    print(f"[MEMORY]\t\t{context}\t\tRSS={mem_info.rss/1024/1024:.2f}MB\t\tVMS={mem_info.vms/1024/1024:.2f}MB\t\tThreads={process.num_threads()}\t\t{var_name}={in_size}", flush=True)
 
 class StatePersister:
     def __init__(self, input_queue, output_file='latest_state.json', batch_write_size=25):
@@ -28,16 +25,24 @@ class StatePersister:
         self.state_buffer = []  # Buffer for batch writing
 
     def run(self, timeout=0):
+        logger.info("Initilizing")
         rows_written = 0
         batch_count = 0
         while True:
-            state_data = self.input_queue.get()
+            if self.input_queue.empty():
+                logger.info("waiting, queue empty")
+                state_data = self.input_queue.get()
+                logger.info("continuing")
+            else:
+                state_data = self.input_queue.get()
+            
             if state_data is None:
                 # Flush any remaining states in buffer
+                logger.info("No more data, flushing")
                 if self.state_buffer:
                     self._write_batch(self.state_buffer)
+                logger.info("Ending loop")
                 break
-            logger.debug(f"Received state from input_queue in StatePersister")
             
             # Handle both single states and batched states
             if isinstance(state_data, list):

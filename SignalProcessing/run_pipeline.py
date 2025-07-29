@@ -4,19 +4,16 @@ from pipeline.file_reading.node_manager import NodeManager
 from pipeline.changes.change_detector import ChangeLevelDetector
 from pipeline.state_builder import StateBuilder
 from pipeline.persist import StatePersister
-from pipeline.memory_utils import MemoryMonitor
-import logging
+from common.memory_utils import MemoryMonitor
 import os
 import datetime
 
-logging.basicConfig(
-    level=logging.debug,
-    format="[%(levelname)s] %(filename)s: %(message)s",
-    handlers=[logging.StreamHandler()]
-)
-logger = logging.getLogger("run_pipeline")
+from common.logger import Logger
+logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
 def run():
+    limit_nodes = None
+
     # Initialize memory monitor
     memory_monitor = MemoryMonitor(log_interval=50)
     
@@ -36,7 +33,7 @@ def run():
     stop_event = threading.Event()
 
     # Set up pipeline stages
-    node_manager = NodeManager(buffer=buffer_queue)
+    node_manager = NodeManager(buffer=buffer_queue, limit_nodes=limit_nodes)
     change_detector = ChangeLevelDetector(buffer_queue, change_queue)
     state_builder = StateBuilder(change_queue, state_queue)
     state_persister = StatePersister(state_queue, output_file=output_file)
@@ -52,6 +49,8 @@ def run():
     # Start threads
     for t in threads:
         t.start()
+
+    logger.info(f"Started all threads")
 
     try:
         while any(t.is_alive() for t in threads):

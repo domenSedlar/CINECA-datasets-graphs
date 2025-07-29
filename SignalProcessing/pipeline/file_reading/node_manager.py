@@ -13,44 +13,13 @@ import psutil
 import ctypes
 import gc
 import platform
+from common.memory_utils import log_memory_usage, get_queue_state, force_memory_cleanup
 
-import logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(levelname)s] %(filename)s: %(message)s",
-    handlers=[logging.StreamHandler()]
-)
-logger = logging.getLogger("run_pipeline")
-
-def log_memory_usage(context="NodeManager.iterate_batches", buffer=None, var_name="buffer"):
-    process = psutil.Process(os.getpid())
-    mem_info = process.memory_info()
-    queue_size = buffer.qsize() if buffer is not None else 'NA'
-    print(f"[MEMORY]\t\t{context}\t\tRSS={mem_info.rss/1024/1024:.2f}MB\t\tVMS={mem_info.vms/1024/1024:.2f}MB\t\tThreads={process.num_threads()}\t\t{var_name}={queue_size}", flush=True)
-
-def force_memory_cleanup():
-    """Cross-platform memory cleanup"""
-    # Force garbage collection
-    gc.collect()
-    
-    # Platform-specific memory release
-    if platform.system() == "Linux":
-        try:
-            ctypes.CDLL("libc.so.6").malloc_trim(0)
-        except Exception:
-            pass  # malloc_trim not available
-    elif platform.system() == "Windows":
-        try:
-            # Windows equivalent - use kernel32 to release memory
-            kernel32 = ctypes.windll.kernel32
-            kernel32.SetProcessWorkingSetSize(-1, -1, -1)
-        except Exception:
-            pass  # Windows memory management not available
+from common.logger import Logger
+logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
 class NodeManager:
-    def __init__(self, buffer: Queue, tarfiles_path='./TarFiles/', interval_seconds=60*15):
-        logger = logging.getLogger(__name__)
-
+    def __init__(self, buffer: Queue, tarfiles_path='./TarFiles/', interval_seconds=60*15, limit_nodes=None):
         self.tarfiles_path = tarfiles_path # only read the first 2 racks for testing
         self.interval_seconds = interval_seconds
         self.buffer = buffer
@@ -113,7 +82,7 @@ class NodeManager:
                                     max_file = f'{tar_filename}:{member.name}'
                             except Exception as e:
                                 logger.warning(f"Failed to read timestamp from {member.name} in {tar_path}: {e}")
-                if(len(nodes) > 1):
+                if(limit_nodes is not None and len(nodes) > limit_nodes):
                     break
             except Exception as e:
                 logger.error(f"Error processing tar file {tar_path}: {e}")
@@ -121,6 +90,9 @@ class NodeManager:
         logger.info(f"Earliest measurement timestamp across all files: {earliest_timestamp}")
         logger.info(f"File with most rows: {max_file} with {max_rows} rows")
         self.earliest_timestamp = earliest_timestamp
+
+        self.node_expected_rows = node_expected_rows
+        self.node_processed_rows = node_processed_rows
 
         if table is not None: # only read the avg columns, not the min/max/std
             all_columns = table.schema.names
@@ -148,11 +120,14 @@ class NodeManager:
         # self.node_expected_rows = node_expected_rows
         # self.node_processed_rows = node_processed_rows
 
-    def iterate_batches(self, limit_rows=None, stop_event=None):
+    def iterate_batches(self, limit_rows=None, stop_event=None, final_log_frequency=50):
         """
         Yields a dictionary {node_id: reading} for each batch,
         until all NodeSensorManagers are exhausted.
         """
+
+        logger.info("Starting node_manager")
+
         active_nodes = set(self.node_managers.keys())
         unactive_nodes = set()
         batch = {}
@@ -161,7 +136,7 @@ class NodeManager:
         start_time = time.time()
         last_log_time = start_time
 
-        log_frequency = 1
+        log_frequency = 5
 
         batch_count = 0
         while active_nodes:
@@ -178,17 +153,20 @@ class NodeManager:
                     to_remove.append(node_id)
                 else:
                     batch[node_id] = reading
+                    self.node_processed_rows[node_id] += 1
             for node_id in to_remove:
                 active_nodes.remove(node_id)
                 unactive_nodes.add(node_id)
             if batch:
-                self.buffer.put(copy.deepcopy(batch))
+                if self.buffer.full():
+                    logger.info("buffer is full")
+                    self.buffer.put(copy.deepcopy(batch))
+                    logger.info("continuing")
+                else:
+                    self.buffer.put(copy.deepcopy(batch))
                 # print(batch)
                 rows_processed += 1
-                if batch_count % 50 == 0:  # Reduced from 100 for more frequent monitoring
-                    log_memory_usage(f"NodeManager.iterate_batches batch {batch_count}", buffer=self.buffer, var_name="buffer_queue")
-                    # Force memory cleanup periodically
-                    force_memory_cleanup()
+
                 batch_count += 1
                 if rows_processed % log_frequency == 0:
                     now = time.time()
@@ -196,20 +174,27 @@ class NodeManager:
                     total = now - start_time
                     logger.info(f"NodeManager: Processed {rows_processed} batches. Last {log_frequency} in {interval:.2f}s, total elapsed {total:.2f}s.")
                     last_log_time = now
-                    if log_frequency < 1000:
+
+                    log_memory_usage(f"NodeManager.iterate_batches batch {batch_count}", buffer=self.buffer, var_name="buffer_queue")
+                    logger.debug(get_queue_state({
+                        "buffer" : self.buffer
+                    }))
+                    # Force memory cleanup periodically
+                    force_memory_cleanup()
+                    
+                    if log_frequency < final_log_frequency:
                         log_frequency *= 10
                 if limit_rows is not None and rows_processed >= limit_rows:
                     break
+
         self.buffer.put(None)
         # After processing, log expected vs actual rows per node
         logger.info("NodeManager: Checking processed row counts per node...")
-        for node_id, manager in self.node_managers.items():
-            expected = manager.get_expected_row_count()
-            actual = manager.get_processed_row_count()
-            if expected != actual:
-                logger.warning(f"Node {node_id}: Expected {expected} rows, processed {actual} rows!")
+        for node_id, man in self.node_managers.items():
+            if self.expected_rows[node_id] != self.processed_rows[node_id]:
+                logger.warning(f"Node {node_id}: Expected {self.expected_rows[node_id]} rows, processed {self.processed_rows[node_id]} rows!")
             else:
-                logger.info(f"Node {node_id}: Processed all {actual} rows as expected.")
+                logger.info(f"Node {node_id}: Processed all {self.processed_rows[node_id]} rows as expected.")
 
 def main():
     import argparse
