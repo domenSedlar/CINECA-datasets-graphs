@@ -41,14 +41,14 @@ class NodeSensorManager:
         parquet_filename = f"{self.node_id}.parquet"
         
         # Monitor memory before processing
-        process = psutil.Process(os.getpid())
-        mem_before = process.memory_info().rss / 1024 / 1024
-        logger.debug(f"Node {self.node_id}: Memory before processing: {mem_before:.2f}MB")
+        # process = psutil.Process(os.getpid())
+        # mem_before = process.memory_info().rss / 1024 / 1024
+        # logger.debug(f"Node {self.node_id}: Memory before processing: {mem_before:.2f}MB")
         
         with tarfile.open(tar_file_path, 'r') as tar:
             member = tar.getmember(parquet_filename)
             file_size = member.size
-            logger.debug(f"Node {self.node_id}: Processing parquet file of size {file_size/1024/1024:.2f}MB")
+            # logger.debug(f"Node {self.node_id}: Processing parquet file of size {file_size/1024/1024:.2f}MB")
             
             # Create temp file on D: drive to avoid C: space issues
             temp_dir = "D:/temp_parquet_files"
@@ -121,8 +121,8 @@ class NodeSensorManager:
             gc.collect()
             
             # Monitor memory after processing
-            mem_after = process.memory_info().rss / 1024 / 1024
-            logger.debug(f"Node {self.node_id}: Memory after processing: {mem_after:.2f}MB (delta: {mem_after - mem_before:.2f}MB)")
+            # mem_after = process.memory_info().rss / 1024 / 1024
+            # logger.debug(f"Node {self.node_id}: Memory after processing: {mem_after:.2f}MB (delta: {mem_after - mem_before:.2f}MB)")
 
     def _sanitize_sensor_values(self, row): # if the value is None, use the last valid value from current_readings when it exists
         import math

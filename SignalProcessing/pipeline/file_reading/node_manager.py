@@ -54,7 +54,7 @@ class NodeManager:
                             try:
                                 node_id = int(node_id_str)
                             except ValueError:
-                                logger.info(f"Skipping file with invalid node_id: {base}")
+                                logger.warning(f"Skipping file with invalid node_id: {base}")
                                 continue
                             nodes.append(node_id)
                             tar_paths.append(tar_path)
@@ -101,7 +101,7 @@ class NodeManager:
 
         # Create NodeSensorManager for each node
         self.node_managers = {}
-        for node_id, tar_path in zip(nodes, tar_paths):
+        for i, node_id, tar_path in enumerate(zip(nodes, tar_paths)):
             rack_id = os.path.splitext(os.path.basename(tar_path))[0]
             self.node_managers[node_id] = NodeSensorManager(
                 node_id=node_id,
@@ -111,6 +111,8 @@ class NodeManager:
                 sensor_columns=self.sensor_columns,
                 interval_seconds=self.interval_seconds
             )
+            if i % 100 == 0:
+                logger.info(f"intilized {i} nodes")
             # Force memory cleanup after creating each manager
             force_memory_cleanup()
         
