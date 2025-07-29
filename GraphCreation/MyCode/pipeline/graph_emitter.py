@@ -1,11 +1,12 @@
-def emit_graphs(graphs):
+class GraphEmitter:
     """
-    Emits the graphs for persistence. For now, just returns the input dict.
-    In the future, this could filter, transform, or otherwise process the graphs.
+    Formats graphs into a format that can be persisted.
     """
-    # Placeholder for future processing
-    return graphs
-
+    def __init__(self, input_queue, output_queue):
+        self.input_queue = input_queue
+        self.output_queue = output_queue
+        
+    def emit_graphs(self):
 if __name__ == '__main__':
     from graph_builder import build_graph_for_node
     from read_and_emit import read_state_file, STATE_FILE
