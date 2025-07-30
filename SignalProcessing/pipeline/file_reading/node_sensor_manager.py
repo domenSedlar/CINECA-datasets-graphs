@@ -9,7 +9,7 @@ from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
 class NodeSensorManager:
-    def __init__(self, node_id, tar_path, rack_id, current_time=None, sensor_columns=None, timestamp_col='timestamp', interval_seconds=60*15, expected_rows=None, rows_in_mem=10, temp_dir="D:/temp_parquet_files"): # manages sensor data for a single node
+    def __init__(self, node_id, tar_path=None, file_path=None, rack_id=None, current_time=None, sensor_columns=None, timestamp_col='timestamp', interval_seconds=60*15, expected_rows=None, rows_in_mem=10, temp_dir="D:/temp_parquet_files"): # manages sensor data for a single node
         self.node_id = node_id
         self.tar_path = tar_path
         self.rack_id = rack_id
@@ -26,9 +26,12 @@ class NodeSensorManager:
         self.sensor_columns = sensor_columns
         self.expected_rows = expected_rows
         self.processed_rows = 0
-        self._prepare_generators(rows_in_mem, temp_dir=temp_dir)
+        if tar_path is not None:
+            self._prepare_generators_from_tar(rows_in_mem, temp_dir=temp_dir)
+        elif file_path is not None:
+            self._prepare_generators(rows_in_mem, file_path)
 
-    def _prepare_generators(self, rows_in_mem, temp_dir="D:/temp_parquet_files"):
+    def _prepare_generators_from_tar(self, rows_in_mem, temp_dir="D:/temp_parquet_files"):
         import tarfile
         import pyarrow.parquet as pq
         import gc
@@ -80,12 +83,13 @@ class NodeSensorManager:
                 self.sensor_columns = [col for col in all_columns if col != self.timestamp_col][:3]
             
             # Use pyarrow streaming to avoid memory mapping
-            def row_generator(pq_file, batch_size=rows_in_mem):
+            def row_generator(pq_file, batch_size=rows_in_mem, logger=logger):
                 pq_file  # Make pq_file accessible in this function
                 try:
                     # Read in very small chunks using pyarrow iter_batches
                     for batch in pq_file.iter_batches(batch_size=batch_size, columns=[self.timestamp_col] + self.sensor_columns):
                         batch_df = batch.to_pandas()
+                        logger.debug("fresh batch")
                         for _, row in batch_df.iterrows():
                             yield row
                         # Force garbage collection after each batch
@@ -122,6 +126,62 @@ class NodeSensorManager:
             # Monitor memory after processing
             # mem_after = process.memory_info().rss / 1024 / 1024
             # logger.debug(f"Node {self.node_id}: Memory after processing: {mem_after:.2f}MB (delta: {mem_after - mem_before:.2f}MB)")
+
+    def _prepare_generators(self, rows_in_mem, par_file):
+        import tarfile
+        import pyarrow.parquet as pq
+        import gc
+        import psutil
+        import os
+        import tempfile
+                
+        pq_file = pq.ParquetFile(par_file)
+        
+        # Determine sensor columns if not already set
+        if self.sensor_columns is None:
+            all_columns = pq_file.schema.names
+            self.sensor_columns = [col for col in all_columns if col != self.timestamp_col][:3]
+        
+        # Use pyarrow streaming to avoid memory mapping
+        def row_generator(pq_file, batch_size=rows_in_mem, logger=logger):
+            pq_file  # Make pq_file accessible in this function
+            try:
+                # Read in very small chunks using pyarrow iter_batches
+                for batch in pq_file.iter_batches(batch_size=batch_size, columns=[self.timestamp_col] + self.sensor_columns):
+                    batch_df = batch.to_pandas()
+                    logger.debug("fresh batch")
+                    for _, row in batch_df.iterrows():
+                        yield row
+                    # Force garbage collection after each batch
+                    gc.collect()
+                    del batch_df
+                    # Force C library to release memory back to OS periodically
+                    try:
+                        ctypes.CDLL("libc.so.6").malloc_trim(0)
+                    except Exception as e:
+                        pass  # malloc_trim not available on this system
+            finally:
+                # Clean up temp file immediately after processing
+                try:
+                    del pq_file  # Explicitly delete pyarrow file object
+                    gc.collect()  # Force cleanup
+                    # Force C library to release memory back to OS
+                    try:
+                        ctypes.CDLL("libc.so.6").malloc_trim(0)
+                    except Exception as e:
+                        pass  # malloc_trim not available on this system                    
+                except:
+                    pass
+        
+        self.sensor_generator = row_generator(pq_file)
+        
+        # Force garbage collection after setup
+        gc.collect()
+        
+        # Monitor memory after processing
+        # mem_after = process.memory_info().rss / 1024 / 1024
+        # logger.debug(f"Node {self.node_id}: Memory after processing: {mem_after:.2f}MB (delta: {mem_after - mem_before:.2f}MB)")
+
 
     def _sanitize_sensor_values(self, row): # if the value is None, use the last valid value from current_readings when it exists
         import math
@@ -164,23 +224,14 @@ class NodeSensorManager:
             return str(ts)
 
         try:
-            # On the very first call, yield the first row
-            if not self._first_reading_yielded:
-                next_row = next(self.sensor_generator)
-                self.current_time = next_row[self.timestamp_col]
-                self.current_readings = self._sanitize_sensor_values(next_row)
-                self._first_reading_yielded = True
-                self.processed_rows += 1
-                return {
-                    'timestamp': to_json_serializable_timestamp(self.current_time),
-                    'rack_id': self.rack_id,
-                    'sensor_data': self.current_readings.copy() if self.current_readings else None
-                }
+            logger.debug("trying to read")
             # Use buffered row if available, else get next from generator
             if self._buffered_row is not None:
                 next_row = self._buffered_row
+                logger.debug("collected buffered row")
             else:
                 next_row = next(self.sensor_generator)
+                logger.debug("got row")
             next_time = next_row[self.timestamp_col]
             expected_next_time = self.current_time + self.interval
             allowed_next_time = expected_next_time + timedelta(seconds=allowed_offset_seconds)
@@ -189,6 +240,7 @@ class NodeSensorManager:
                 self._buffered_row = next_row
                 sensor_data = {k: None for k in self.sensor_columns}
                 self.current_time = expected_next_time
+                logger.debug("buffered row, and returned")
                 return { # for now we return None, as we have no data for this interval
                     'timestamp': to_json_serializable_timestamp(self.current_time),
                     'rack_id': self.rack_id,
@@ -197,12 +249,14 @@ class NodeSensorManager:
             else:
                 self._buffered_row = None
                 self.current_time = next_time
+                logger.debug("sanitizing")
                 self.current_readings = self._sanitize_sensor_values(next_row)
                 self.processed_rows += 1
+                logger.debug("returning")
                 return {
                     'timestamp': to_json_serializable_timestamp(self.current_time),
                     'rack_id': self.rack_id,
-                    'sensor_data': self.current_readings.copy() if self.current_readings else None
+                    'sensor_data': self.current_readings.copy() if self.current_readings else None # TODO I dont think we need to copy current readings here
                 }
         except StopIteration:
             self.current_time = None

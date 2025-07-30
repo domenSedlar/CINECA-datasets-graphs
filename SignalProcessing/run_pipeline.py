@@ -16,7 +16,7 @@ def run():
     delta=0.5
     clock=3
     bq_max_size=50
-    rows_in_mem=30
+    rows_in_mem=100
     temp_dir_loc="E:/temp_parquet_files"
 
     vars_to_log = ['limit_nodes', 'delta', 'clock', 'bq_max_size', 'rows_in_mem']
@@ -30,7 +30,7 @@ def run():
     
         # Set up queues for each stage with size limits for backpressure
     # Create queues with smaller sizes for more aggressive memory management
-    buffer_queue = queue.Queue(maxsize=50)     # NodeManager → ChangeLevelDetector (reduced from 200)
+    buffer_queue = queue.Queue(maxsize=bq_max_size)     # NodeManager → ChangeLevelDetector (reduced from 200)
     change_queue = queue.Queue(maxsize=25)     # ChangeLevelDetector → StateBuilder (reduced from 100)
     state_queue = queue.Queue(maxsize=100)     # StateBuilder → StatePersister (reduced from 500)
 
@@ -44,7 +44,7 @@ def run():
     stop_event = threading.Event()
 
     # Set up pipeline stages
-    node_manager = NodeManager(buffer=buffer_queue, limit_nodes=limit_nodes, temp_dir=temp_dir_loc)
+    node_manager = NodeManager(buffer=buffer_queue, limit_nodes=limit_nodes, temp_dir=temp_dir_loc, rows_in_mem=rows_in_mem)
     change_detector = ChangeLevelDetector(buffer_queue, change_queue)
     state_builder = StateBuilder(change_queue, state_queue)
     state_persister = StatePersister(state_queue, output_file=output_file)

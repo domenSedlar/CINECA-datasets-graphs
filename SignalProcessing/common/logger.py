@@ -26,7 +26,7 @@ class Logger:
             log_file = os.path.join(log_path, log_filename)
             fh = logging.FileHandler(log_file)
             fh.setFormatter(formatter)
-            self.logger.addHandler(fh)
+            # self.logger.addHandler(fh)
 
     def info(self, message):
         self.logger.info(message)

@@ -14,21 +14,21 @@ import ctypes
 import gc
 import platform
 from common.memory_utils import log_memory_usage, get_queue_state, force_memory_cleanup
+import datetime
 
 from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
 class NodeManager:
     def __init__(self, buffer: Queue, tarfiles_path='./TarFiles/', interval_seconds=60*15, limit_nodes=None, rows_in_mem=10, temp_dir="D:/temp_parquet_files"):
-        self.tarfiles_path = tarfiles_path # only read the first 2 racks for testing
+        self.files_path = tarfiles_path # only read the first 2 racks for testing
         self.interval_seconds = interval_seconds
         self.buffer = buffer
         self.sensor_columns = None # limits which sensors we read
-
-        nodes = []
-        tar_paths = []
-
-        # Scan all tar files and .parquet members in a single pass, collecting node info and earliest timestamp
+        self.setup_par_files(rows_in_mem, temp_dir, limit_nodes)
+        
+    def setup_tar_files(self, rows_in_mem, temp_dir, limit_nodes):
+                # Scan all tar files and .parquet members in a single pass, collecting node info and earliest timestamp
         nodes = []
         tar_paths = []
         earliest_timestamp = None
@@ -38,13 +38,14 @@ class NodeManager:
         max_file = None
         node_expected_rows = {}  # node_id -> expected row count
         node_processed_rows = {}  # node_id -> processed row count
-        for tar_filename in os.listdir(self.tarfiles_path):
+
+        for tar_filename in os.listdir(self.files_path):
             if not tar_filename.endswith('.tar'): 
                 continue
             if '-' in tar_filename: # skip tar files that are not for a single rack
                 continue
 
-            tar_path = os.path.join(self.tarfiles_path, tar_filename)
+            tar_path = os.path.join(self.files_path, tar_filename)
             try:
                 with tarfile.open(tar_path, 'r') as tar:
                     for member in tar.getmembers():
@@ -59,6 +60,12 @@ class NodeManager:
                             nodes.append(node_id)
                             tar_paths.append(tar_path)
                             # Find earliest timestamp in this parquet file
+
+                            earliest_timestamp = datetime.datetime.fromisoformat("2020-03-09 11:45:00+00:00")
+                            max_rows = 86650
+
+                            continue
+
                             try:
                                 file_obj = tar.extractfile(member)
                                 if file_obj is None:
@@ -126,6 +133,77 @@ class NodeManager:
         # self.node_expected_rows = node_expected_rows
         # self.node_processed_rows = node_processed_rows
 
+    def setup_par_files(self, rows_in_mem, temp_dir, limit_nodes):
+        # Scan all tar files and .parquet members in a single pass, collecting node info and earliest timestamp
+        nodes = []
+        file_paths = []
+        earliest_timestamp = datetime.datetime.fromisoformat("2020-03-09 11:45:00+00:00")
+        max_rows = 86650
+        table = None
+
+        max_file = "15.parquet"
+        node_expected_rows = {}  # node_id -> expected row count
+        node_processed_rows = {}  # node_id -> processed row count
+
+        for folder in os.listdir(self.files_path):
+            if not os.path.isdir(os.path.join(self.files_path, folder)): 
+                continue
+            if '-' in folder: # skip tar files that are not for a single rack
+                continue
+
+            for file in os.listdir(os.path.join(self.files_path, folder)):
+                if(limit_nodes is not None and len(nodes) > limit_nodes):
+                    break
+                if not file.endswith(".parquet"):
+                    continue
+                node_id_str = file.split('.')[0]
+                try:
+                    node_id = int(node_id_str)
+                except ValueError:
+                    logger.warning(f"Skipping file with invalid node_id: {node_id_str}")
+                    continue
+                nodes.append(node_id)
+                file_paths.append(os.path.join(self.files_path, folder, file))
+
+        logger.info(f"Earliest measurement timestamp across all files: {earliest_timestamp}")
+        logger.info(f"File with most rows: {max_file} with {max_rows} rows")
+        self.earliest_timestamp = earliest_timestamp
+
+        self.node_expected_rows = node_expected_rows
+        self.node_processed_rows = node_processed_rows
+
+        if table is not None: # only read the avg columns, not the min/max/std
+            all_columns = table.schema.names
+            sensor_columns = [col for col in all_columns if col != 'timestamp' and not (col.endswith('_min') or col.endswith('_max') or col.endswith('_std'))]
+            self.sensor_columns = sensor_columns
+
+        # Create NodeSensorManager for each node
+        self.node_managers = {}
+        i = 0
+        for node_id, file in zip(nodes, file_paths):
+            i+=1
+            rack_id = os.path.splitext(os.path.basename(file))[0]
+            self.node_managers[node_id] = NodeSensorManager(
+                node_id=node_id,
+                file_path=file,
+                rack_id=rack_id,
+                current_time=earliest_timestamp,
+                sensor_columns=self.sensor_columns,
+                interval_seconds=self.interval_seconds,
+                rows_in_mem=rows_in_mem,
+                temp_dir=temp_dir
+            )
+            if i % 100 == 0:
+                logger.info(f"intilized {i} nodes")
+            # Force memory cleanup after creating each manager
+            force_memory_cleanup()
+        
+        # Force garbage collection after all managers are created
+        force_memory_cleanup()
+
+        # self.node_expected_rows = node_expected_rows
+        # self.node_processed_rows = node_processed_rows
+
     def iterate_batches(self, limit_rows=None, stop_event=None, final_log_frequency=50):
         """
         Yields a dictionary {node_id: reading} for each batch,
@@ -150,6 +228,9 @@ class NodeManager:
                 logger.info("NodeManager.iterate_batches detected stop_event set, breaking loop.")
                 break
             to_remove = []
+                            
+            logger.debug("reading data from nodes")
+
             for node_id in active_nodes:
                 if stop_event and stop_event.is_set():
                     logger.info("NodeManager.iterate_batches detected stop_event set inside node loop, breaking.")
@@ -159,17 +240,18 @@ class NodeManager:
                     to_remove.append(node_id)
                 else:
                     batch[node_id] = reading
-                    self.node_processed_rows[node_id] += 1
+                    # self.node_processed_rows[node_id] += 1
             for node_id in to_remove:
                 active_nodes.remove(node_id)
                 unactive_nodes.add(node_id)
             if batch:
+                logger.debug("pushing row")
                 if self.buffer.full():
                     logger.info("buffer is full")
                     self.buffer.put(copy.copy(batch))
-                    logger.info("continuing")
                 else:
                     self.buffer.put(copy.copy(batch))
+                logger.debug("pushed")
                 # print(batch)
                 rows_processed += 1
 
