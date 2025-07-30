@@ -16,7 +16,8 @@ def run():
     delta=0.5
     clock=3
     bq_max_size=50
-    rows_in_mem=20
+    rows_in_mem=30
+    temp_dir_loc="E:/temp_parquet_files"
 
     vars_to_log = ['limit_nodes', 'delta', 'clock', 'bq_max_size', 'rows_in_mem']
     log_message = ""
@@ -43,7 +44,7 @@ def run():
     stop_event = threading.Event()
 
     # Set up pipeline stages
-    node_manager = NodeManager(buffer=buffer_queue, limit_nodes=limit_nodes)
+    node_manager = NodeManager(buffer=buffer_queue, limit_nodes=limit_nodes, temp_dir=temp_dir_loc)
     change_detector = ChangeLevelDetector(buffer_queue, change_queue)
     state_builder = StateBuilder(change_queue, state_queue)
     state_persister = StatePersister(state_queue, output_file=output_file)

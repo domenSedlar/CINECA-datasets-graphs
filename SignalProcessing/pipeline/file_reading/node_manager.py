@@ -19,7 +19,7 @@ from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
 class NodeManager:
-    def __init__(self, buffer: Queue, tarfiles_path='./TarFiles/', interval_seconds=60*15, limit_nodes=None, rows_in_mem=10):
+    def __init__(self, buffer: Queue, tarfiles_path='./TarFiles/', interval_seconds=60*15, limit_nodes=None, rows_in_mem=10, temp_dir="D:/temp_parquet_files"):
         self.tarfiles_path = tarfiles_path # only read the first 2 racks for testing
         self.interval_seconds = interval_seconds
         self.buffer = buffer
@@ -112,7 +112,8 @@ class NodeManager:
                 current_time=earliest_timestamp,
                 sensor_columns=self.sensor_columns,
                 interval_seconds=self.interval_seconds,
-                rows_in_mem=rows_in_mem
+                rows_in_mem=rows_in_mem,
+                temp_dir=temp_dir
             )
             if i % 100 == 0:
                 logger.info(f"intilized {i} nodes")
