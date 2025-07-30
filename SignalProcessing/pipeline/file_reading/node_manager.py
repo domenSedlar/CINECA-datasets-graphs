@@ -146,8 +146,8 @@ class NodeManager:
         node_processed_rows = {}  # node_id -> processed row count
 
         for folder in os.listdir(self.files_path):
-            if not os.path.basename(folder) == "0":
-                continue
+            # if not os.path.basename(folder) == "0":
+                # continue
             if not os.path.isdir(os.path.join(self.files_path, folder)): 
                 continue
             if '-' in folder: # skip tar files that are not for a single rack
