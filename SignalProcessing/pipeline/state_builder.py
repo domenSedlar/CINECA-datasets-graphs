@@ -45,28 +45,29 @@ class StateBuilder:
                 # If node is not in states, always create it and write the sensor value (even if value is None)
                 if node not in self.states:
                     self.states[node] = {
+                        'node': int(node),
                         'timestamp': timestamp,
                         'rack_id': rack_id,
-                        'sensor_data': {sensor: value}
+                        sensor: value
                     }
                     continue  # skip the rest, as we've already written the value (even if None)
 
+                self.states[node]['timestamp'] = timestamp
+                self.states[node]['rack_id'] = rack_id
+
                 # If sensor is not in this node's sensor_data, write the value (even if None)
-                if sensor not in self.states[node]['sensor_data']:
-                    self.states[node]['timestamp'] = timestamp
-                    self.states[node]['rack_id'] = rack_id
-                    self.states[node]['sensor_data'][sensor] = value
+                if sensor not in self.states[node]:
+                    self.states[node][sensor] = value
                     continue
 
                 # Otherwise, only update if all fields are present (i.e., value is not None)
-                if None in (sensor, node, value, timestamp, rack_id):
+                if None in (sensor, node, value, timestamp):
                     logger.warning(f"Incomplete sensor data: {sensor_data}")
                     continue
 
                 # Always update timestamp and rack_id to the latest, and update sensor value
-                self.states[node]['timestamp'] = timestamp
-                self.states[node]['rack_id'] = rack_id
-                self.states[node]['sensor_data'][sensor] = value
+
+                self.states[node][sensor] = value
 
             # Add current states to pending batch
             self.pending_states.append(copy.deepcopy(self.states))

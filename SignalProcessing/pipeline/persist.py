@@ -6,6 +6,9 @@ import os
 import ctypes
 import gc
 import platform
+import pyarrow as pa
+import pandas as pd
+import pyarrow.parquet as pq
 
 from common.memory_utils import force_memory_cleanup, log_memory_usage, get_queue_state
 
@@ -70,7 +73,18 @@ class StatePersister:
     
     def _write_batch(self, states_batch):
         """Write a batch of states to file, maintaining order"""
-        with open(self.output_file, 'a') as f:
-            for state in states_batch:
-                f.write(json.dumps(state, default=default_serializer) + '\n')
-        logger.debug(f"StatePersister: Wrote batch of {len(states_batch)} states to {self.output_file}")
+        flat_data = []
+        for state in states_batch:
+            for k, entery in state.items():
+                row = entery
+                flat_data.append(entery)
+        df = pd.DataFrame(flat_data)
+        table = pa.Table.from_pandas(df)
+        # Check if file exists
+        if not os.path.exists(self.output_file):
+            # Create new file
+            pq.write_table(table, self.output_file)
+        else:
+            # Append to existing file
+            with pq.ParquetWriter(self.output_file, table.schema, use_dictionary=True) as writer:
+                writer.write_table(table)

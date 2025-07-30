@@ -146,6 +146,8 @@ class NodeManager:
         node_processed_rows = {}  # node_id -> processed row count
 
         for folder in os.listdir(self.files_path):
+            if not os.path.basename(folder) == "0":
+                continue
             if not os.path.isdir(os.path.join(self.files_path, folder)): 
                 continue
             if '-' in folder: # skip tar files that are not for a single rack
@@ -182,7 +184,7 @@ class NodeManager:
         i = 0
         for node_id, file in zip(nodes, file_paths):
             i+=1
-            rack_id = os.path.splitext(os.path.basename(file))[0]
+            rack_id = os.path.splitext(file)[-2]
             self.node_managers[node_id] = NodeSensorManager(
                 node_id=node_id,
                 file_path=file,

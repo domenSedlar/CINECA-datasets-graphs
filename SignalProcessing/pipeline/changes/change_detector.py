@@ -145,9 +145,9 @@ class ChangeLevelDetector:
                 self.output_queue.put(None)
                 break
             if self.input_queue.empty():
-                logger.info("waiting for readings...")
+                # logger.info("waiting for readings...")
                 reading = self.input_queue.get()
-                logger.info("got readings")
+                # logger.info("got readings")
             else:
                 reading = self.input_queue.get()
             if reading is None:

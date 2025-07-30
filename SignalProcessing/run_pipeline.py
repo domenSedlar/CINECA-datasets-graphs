@@ -15,8 +15,8 @@ def run():
     limit_nodes = None
     delta=0.5
     clock=3
-    bq_max_size=50
-    rows_in_mem=100
+    bq_max_size=600
+    rows_in_mem=500
     temp_dir_loc="E:/temp_parquet_files"
 
     vars_to_log = ['limit_nodes', 'delta', 'clock', 'bq_max_size', 'rows_in_mem']
