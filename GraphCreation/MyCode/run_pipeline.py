@@ -19,17 +19,17 @@ def main():
 
     # Create objects
     reader = StateFileReader(buffer=reader_output_queue)
-    builder = GraphBuilder(buffer=reader_output_queue, output_queue=builder_output_queue)
+    builder = GraphBuilder(buffer=reader_output_queue, output_queue=None)
     import datetime
     unique_run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     unique_filename = f'all_graphs_{unique_run_id}.pkl'
-    storage = GraphStorage(input_queue=builder_output_queue, filename=unique_filename)
+    # storage = GraphStorage(input_queue=builder_output_queue, filename=unique_filename)
 
     # Create threads
     threads = [
         threading.Thread(target=reader.read_and_emit, name="StateFileReaderThread"),
         threading.Thread(target=builder.build_graph, name="GraphBuilderThread"),
-        threading.Thread(target=storage.run, name="GraphStorageThread"),
+        # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]
 
     # Start threads

@@ -3,6 +3,7 @@ import networkx as nx
 import json
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 
 class GraphBuilder:
     def __init__(self, buffer, output_queue):
@@ -16,16 +17,17 @@ class GraphBuilder:
     def _update_graph(self, state):
         t = None
         for node_id, node_data in state.items():
-            print(node_data)
+            # print(node_data)
             for sensor, value in node_data.items():
                 if sensor == "rack_id" or sensor.lower()=="timestamp"or sensor == "node":
                     continue
-            sensor_node_id = self._get_sensor_id(node_id, sensor)
-            if sensor_node_id in self.graph.nodes:
-                print(f"Updating {sensor_node_id} to value {value}")
+                sensor_node_id = self._get_sensor_id(node_id, sensor)
                 self.graph.nodes[sensor_node_id]["value"] = value
-            else:
-                print(f"Node {sensor_node_id} not found in graph!")
+                if isinstance(value, float) and math.isnan(value):
+                    continue  # skip NaN comparison
+                if self.graph.nodes[sensor_node_id]["value"] != value:
+                    print("AAAAAAAAAAA")
+
     def build_graph_r_n_sg_s(self, state): # r_n_sg_s: rack_node_sensorGroup_sensor
         graph = nx.Graph()
         rack_nodes = []  # Track all rack nodes to connect them later
@@ -85,18 +87,23 @@ class GraphBuilder:
         state = self.buffer.get()
         self.graph = self.build_graph_nn_s(state)
         self.visualize_nn_s_graph(self.graph)
+        i = 0
 
         while True:
             state = self.buffer.get()
             if state is None:
                 print("No more state data to process. Exiting.")
-                self.output_queue.put(None)
+                if self.output_queue is not None:
+                    self.output_queue.put(None)
                 break
             self._update_graph(state)
+            print(state[2]['timestamp'], state[2]['ambient_avg'])
             # Put the graph in the output queue
-            self.visualize_nn_s_graph(self.graph)
-
-            self.output_queue.put(self.graph.copy())
+            if i < 4:
+                self.visualize_nn_s_graph(self.graph)
+                i += 1
+            if self.output_queue is not None:
+                self.output_queue.put(self.graph.copy())
 
     def build_graph_nn_s(self, state): # nn_s: node_sensor, all nodes connected to each other
         graph = nx.Graph()

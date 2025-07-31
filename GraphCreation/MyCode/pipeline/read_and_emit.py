@@ -4,6 +4,7 @@ from queue import Queue
 import pyarrow.parquet as pq
 import pyarrow as pa
 import pandas as pd
+from copy import deepcopy
 
 class StateFileReader:
     def __init__(self, buffer, state_file='StateFiles/state.parquet'):
@@ -25,13 +26,16 @@ class StateFileReader:
         for batch in pq_file.iter_batches(batch_size=100):
             batch_df = batch.to_pandas()
             for _, row in batch_df.iterrows():
-                state[row["node"]] = row.to_dict()
                 if current_t is None:
                     current_t = row["timestamp"]
                 elif current_t != row["timestamp"]:
                     print(current_t)
-                    self.buffer.put(state)
+                    self.buffer.put(deepcopy(state))
+                    state = {}
                     current_t = row["timestamp"]
+                    print(row)
+                state[row["node"]] = deepcopy(row.to_dict())
+
                     
         self.buffer.put(state)
         self.buffer.put(None)
