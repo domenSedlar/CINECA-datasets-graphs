@@ -17,7 +17,7 @@ from common.memory_utils import log_memory_usage, get_queue_state, force_memory_
 import datetime
 
 from common.logger import Logger
-logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
+logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
 
 class NodeManager:
     def __init__(self, buffer: Queue, tarfiles_path='./TarFiles/', interval_seconds=60*15, limit_nodes=None, rows_in_mem=10, temp_dir="D:/temp_parquet_files"):
@@ -146,8 +146,8 @@ class NodeManager:
         node_processed_rows = {}  # node_id -> processed row count
 
         for folder in os.listdir(self.files_path):
-            # if not os.path.basename(folder) == "0":
-                # continue
+            if not os.path.basename(folder) == "0":
+                continue
             if not os.path.isdir(os.path.join(self.files_path, folder)): 
                 continue
             if '-' in folder: # skip tar files that are not for a single rack
@@ -182,9 +182,11 @@ class NodeManager:
         # Create NodeSensorManager for each node
         self.node_managers = {}
         i = 0
+        logger.info(len(nodes))
+        logger.info(len(file_paths))
         for node_id, file in zip(nodes, file_paths):
             i+=1
-            rack_id = os.path.splitext(file)[-2]
+            rack_id = file.split("/")[-1].split("\\")[0]
             self.node_managers[node_id] = NodeSensorManager(
                 node_id=node_id,
                 file_path=file,
@@ -241,19 +243,19 @@ class NodeManager:
                 if reading is None:
                     to_remove.append(node_id)
                 else:
-                    batch[node_id] = reading
+                    batch[node_id] = copy.copy(reading)
                     # self.node_processed_rows[node_id] += 1
             for node_id in to_remove:
                 active_nodes.remove(node_id)
                 unactive_nodes.add(node_id)
             if batch:
-                logger.debug("pushing row")
+                # logger.debug("pushing row")
                 if self.buffer.full():
-                    logger.info("buffer is full")
+                    # logger.info("buffer is full")
                     self.buffer.put(copy.copy(batch))
                 else:
                     self.buffer.put(copy.copy(batch))
-                logger.debug("pushed")
+                # logger.debug("pushed")
                 # print(batch)
                 rows_processed += 1
 

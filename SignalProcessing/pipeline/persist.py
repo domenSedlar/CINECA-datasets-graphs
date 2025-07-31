@@ -76,7 +76,6 @@ class StatePersister:
         flat_data = []
         for state in states_batch:
             for k, entery in state.items():
-                row = entery
                 flat_data.append(entery)
         df = pd.DataFrame(flat_data)
         table = pa.Table.from_pandas(df)

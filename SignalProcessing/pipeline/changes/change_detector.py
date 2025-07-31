@@ -7,7 +7,7 @@ import os
 from common.my_timer import Timer
 from common.memory_utils import log_memory_usage
 from common.logger import Logger
-logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
+logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
 
 class ChangeLevelDetector:
     STOP_SIGNAL = object()
@@ -115,9 +115,9 @@ class ChangeLevelDetector:
             self.t.end()
 
             if self.output_queue.full():
-                logger.info("output queue full...")
+                # logger.info("output queue full...")
                 self.output_queue.put(output)
-                logger.info("continuing")
+                # logger.info("continuing")
             else:
                 self.output_queue.put(output)
         

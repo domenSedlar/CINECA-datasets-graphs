@@ -3,6 +3,8 @@ import os
 
 class Logger:
     def __init__(self, name=__name__, log_file='pipeline.log', log_dir='logs'):
+        self.logger_fake = logging.getLogger("idk")
+
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.DEBUG)
 
@@ -26,7 +28,7 @@ class Logger:
             log_file = os.path.join(log_path, log_filename)
             fh = logging.FileHandler(log_file)
             fh.setFormatter(formatter)
-            # self.logger.addHandler(fh)
+            self.logger.addHandler(fh)
 
     def info(self, message):
         self.logger.info(message)
@@ -39,4 +41,7 @@ class Logger:
 
     def get_logger(self):
         """Expose the internal `logging.Logger` instance."""
+        return self.logger_fake
+    
+    def get_logger_real(self):
         return self.logger

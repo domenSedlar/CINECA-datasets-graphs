@@ -80,7 +80,7 @@ class NodeSensorManager:
             # Determine sensor columns if not already set
             if self.sensor_columns is None:
                 all_columns = pq_file.schema.names
-                self.sensor_columns = [col for col in all_columns if col != self.timestamp_col][:3]
+                self.sensor_columns = [col for col in all_columns if col != self.timestamp_col]
             
             # Use pyarrow streaming to avoid memory mapping
             def row_generator(pq_file, batch_size=rows_in_mem, logger=logger):
@@ -138,9 +138,11 @@ class NodeSensorManager:
         pq_file = pq.ParquetFile(par_file)
         
         # Determine sensor columns if not already set
+        self.sensor_columns = None
         if self.sensor_columns is None:
             all_columns = pq_file.schema.names
             self.sensor_columns = [col for col in all_columns if col != 'timestamp' and not (col.endswith('_min') or col.endswith('_max') or col.endswith('_std'))]
+            self.sensor_columns.append('value')
         
         # Use pyarrow streaming to avoid memory mapping
         def row_generator(pq_file, batch_size=rows_in_mem, logger=logger):

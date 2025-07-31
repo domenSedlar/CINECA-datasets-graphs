@@ -9,14 +9,14 @@ import os
 import datetime
 
 from common.logger import Logger
-logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
+logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
 
 def run():
     limit_nodes = None
     delta=0.5
     clock=3
-    bq_max_size=600
-    rows_in_mem=500
+    bq_max_size=300
+    rows_in_mem=300
     temp_dir_loc="E:/temp_parquet_files"
 
     vars_to_log = ['limit_nodes', 'delta', 'clock', 'bq_max_size', 'rows_in_mem']
@@ -31,10 +31,10 @@ def run():
         # Set up queues for each stage with size limits for backpressure
     # Create queues with smaller sizes for more aggressive memory management
     buffer_queue = queue.Queue(maxsize=bq_max_size)     # NodeManager → ChangeLevelDetector (reduced from 200)
-    change_queue = queue.Queue(maxsize=25)     # ChangeLevelDetector → StateBuilder (reduced from 100)
-    state_queue = queue.Queue(maxsize=100)     # StateBuilder → StatePersister (reduced from 500)
+    change_queue = queue.Queue(maxsize=500)     # ChangeLevelDetector → StateBuilder (reduced from 100)
+    state_queue = queue.Queue(maxsize=500)     # StateBuilder → StatePersister (reduced from 500)
 
-    output_file = f'./outputs/threaded_pipeline_state_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.json'
+    output_file = f'./outputs/threaded_pipeline_state_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.parquet'
 
     # Remove output file if it exists
     if os.path.exists(output_file):
