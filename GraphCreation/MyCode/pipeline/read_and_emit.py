@@ -29,11 +29,9 @@ class StateFileReader:
                 if current_t is None:
                     current_t = row["timestamp"]
                 elif current_t != row["timestamp"]:
-                    print(current_t)
                     self.buffer.put(deepcopy(state))
                     state = {}
                     current_t = row["timestamp"]
-                    print(row)
                 state[row["node"]] = deepcopy(row.to_dict())
 
                     

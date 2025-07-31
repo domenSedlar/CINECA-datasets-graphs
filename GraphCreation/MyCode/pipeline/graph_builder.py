@@ -4,29 +4,44 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+from enum import Enum
+
+class GraphTypes(Enum):
+    RackClique=0
+    NodeClique=1
+    NodeTree=2
 
 class GraphBuilder:
-    def __init__(self, buffer, output_queue):
+    def __init__(self, buffer, output_queue, graph_type=GraphTypes.NodeTree):
         self.buffer = buffer
         self.output_queue = output_queue
         self.graph = None
+        self.graphs = {}
+        self.sensor_types = ["temp", "pow"]
+        self.graph_type = graph_type
 
     def _get_sensor_id(self, node_id, sensor_name):
         return str(sensor_name) + "_n" + str(node_id)
     
     def _update_graph(self, state):
-        t = None
-        for node_id, node_data in state.items():
-            # print(node_data)
-            for sensor, value in node_data.items():
-                if sensor == "rack_id" or sensor.lower()=="timestamp"or sensor == "node":
-                    continue
-                sensor_node_id = self._get_sensor_id(node_id, sensor)
-                self.graph.nodes[sensor_node_id]["value"] = value
-                if isinstance(value, float) and math.isnan(value):
-                    continue  # skip NaN comparison
-                if self.graph.nodes[sensor_node_id]["value"] != value:
-                    print("AAAAAAAAAAA")
+        if self.graph_type == GraphTypes.RackClique or self.graph_type == GraphTypes.NodeClique:
+            for node_id, node_data in state.items():
+                # print(node_data)
+                for sensor, value in node_data.items():
+                    if sensor == "rack_id" or sensor.lower()=="timestamp"or sensor == "node":
+                        continue
+                    sensor_node_id = self._get_sensor_id(node_id, sensor)
+                    self.graph.nodes[sensor_node_id]["value"] = value
+        elif self.graph_type == GraphTypes.NodeTree:
+            for node_id, node_data in state.items():
+                for sensor, value in node_data.items():
+
+                    if sensor == "rack_id" or sensor.lower()=="timestamp"or sensor == "node":
+                        continue
+                    sensor_node_id = self._get_sensor_id(node_id, sensor)
+                    self.graphs[node_id].nodes[sensor_node_id]["value"] = value
+        else:
+            print("??, unknown graph type in _update_graph()")
 
     def build_graph_r_n_sg_s(self, state): # r_n_sg_s: rack_node_sensorGroup_sensor
         graph = nx.Graph()
@@ -85,8 +100,32 @@ class GraphBuilder:
     def build_graph(self, graph_type=None):
         """Build graphs from the state data received in the buffer"""
         state = self.buffer.get()
-        self.graph = self.build_graph_nn_s(state)
-        self.visualize_nn_s_graph(self.graph)
+
+        # Default to NodeGraph if not specified
+        if graph_type is None:
+            graph_type = self.graph_type
+
+        # Switch-like structure for graph building and visualization
+        if graph_type == GraphTypes.RackClique:
+            self.graph = self.build_graph_r_n_sg_s(state)
+            visualize = lambda g: self.visualize_graph(g, title="Rack Clique Graph", graph_type="hierarchical")
+        elif graph_type == GraphTypes.NodeClique:
+            self.graph = self.build_graph_nn_s(state)
+            visualize = lambda g: self.visualize_graph(g, title="Node Clique Graph", graph_type="nn_s")
+        elif graph_type == GraphTypes.NodeTree:
+            for node_id, s in state.items():
+                self.build_graph_n_st(node_id=node_id, state=s)
+            nd = None
+            
+            for node_id, s in state.items():
+                nd = node_id
+                break
+            self.graph = self.graphs[nd]
+            visualize = lambda g: self.visualize_node_tree_graph(g, title="Node Clique Graph")
+        else:
+            raise ValueError(f"Unknown graph_type: {graph_type}")
+
+        visualize(self.graph)
         i = 0
 
         while True:
@@ -100,7 +139,7 @@ class GraphBuilder:
             print(state[2]['timestamp'], state[2]['ambient_avg'])
             # Put the graph in the output queue
             if i < 4:
-                self.visualize_nn_s_graph(self.graph)
+                visualize(self.graph)
                 i += 1
             if self.output_queue is not None:
                 self.output_queue.put(self.graph.copy())
@@ -127,6 +166,50 @@ class GraphBuilder:
                 graph.add_edge(node_nodes[i], node_nodes[j])
         
         return graph
+    
+    def build_graph_n_st(self, state, node_id): # n_st, a graph for each node, with connections n(id: position) -> st(id: unique, value: x, type: y) id will later be removed
+        graph = nx.Graph()
+        racks = [
+            [48, 47, 46, 45, None, 44, 43, 42, 41, 40, 39, 38, 37,36,35,34,33, None],
+            [32, 31, 30, 29, None, 28, 27, 26, 25, None, 24, 23, 22, 21, 20, 19, 18, None],
+            [i for i in range(17, -1, -1)]]
+
+        pos_y = None
+        pos_x = None
+
+        for i in range(len(racks)):
+            for j in range(18):
+                if racks[i][j] == state['rack_id']:
+                    pos_y = (0, i - 21)
+                    if i == 0:
+                        pos_x = 10
+                    elif i == 1:
+                        pos_x = 6
+                    else:
+                        pos_x = 2
+
+        pos = (pos_x, pos_y)
+
+        graph.add_node(node_id, position=pos)
+
+        for sensor_name, value in state.items():
+            if sensor_name == "rack_id" or sensor_name.lower()=="timestamp"or sensor_name =="node":
+                continue
+            stype = "other"
+            for i in self.sensor_types:
+                if i in sensor_name:
+                    stype = i
+                    break
+            
+            graph.add_node(
+                self._get_sensor_id(node_id=node_id, sensor_name=sensor_name),
+                type=stype,
+                value=value
+            )
+            graph.add_edge(node_id, self._get_sensor_id(node_id=node_id, sensor_name=sensor_name))
+
+        self.graphs[node_id] = graph
+
 
     def get_graph_info(self, graph):
         """Get detailed information about the graph"""
@@ -255,6 +338,51 @@ class GraphBuilder:
     def visualize_nn_s_graph(self, graph, title="Node-to-Node Sensor Graph"):
         """Visualize the nn_s graph type specifically"""
         return self.visualize_graph(graph, title, "nn_s")
+    
+    def visualize_node_tree_graph(self, graph, title="Node Tree Graph"):
+        """Visualize a NodeTree graph (single node and its sensors)"""
+        try:
+            plt.figure(figsize=(10, 6))
+            pos = nx.spring_layout(graph)
+            node_colors = []
+            for node in graph.nodes():
+                node_data = graph.nodes[node]
+                node_type = node_data.get('type', 'unknown')
+                if node == list(graph.nodes())[0]:  # Assume first node is the main node
+                    node_colors.append('lightgreen')
+                elif node_type == 'temp':
+                    node_colors.append('orange')
+                elif node_type == 'pow':
+                    node_colors.append('yellow')
+                else:
+                    node_colors.append('lightblue')
+            labels = {node: f"{node}\n{graph.nodes[node].get('value', '')}" for node in graph.nodes()}
+            nx.draw(
+                graph, pos,
+                node_color=node_colors,
+                node_size=1000,
+                font_size=8,
+                font_weight='bold',
+                with_labels=False,
+                edge_color='#2E86AB',
+                width=1.0,
+                alpha=0.8
+            )
+            nx.draw_networkx_labels(
+                graph, pos, labels,
+                font_size=8,
+                font_color='black',
+                font_weight='bold',
+                bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.2', alpha=0.7)
+            )
+            plt.title(title, fontsize=14, fontweight='bold', pad=20)
+            plt.tight_layout()
+            plt.show()
+        except ImportError:
+            print("matplotlib not available for visualization")
+            print("Graph structure:")
+            print(f"Nodes: {list(graph.nodes())}")
+            print(f"Edges: {list(graph.edges())}")
     
     def _create_nn_s_layout(self, graph):
         """Create layout for nn_s graph type (node-to-node with sensors)"""

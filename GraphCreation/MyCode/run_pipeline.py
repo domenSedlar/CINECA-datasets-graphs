@@ -7,7 +7,7 @@ from queue import Queue
 sys.path.append(os.path.join(os.path.dirname(__file__), 'pipeline'))
 
 from pipeline.read_and_emit import StateFileReader
-from pipeline.graph_builder import GraphBuilder
+from pipeline.graph_builder import GraphBuilder, GraphTypes
 from pipeline.persist import GraphStorage
 
 import argparse
@@ -19,7 +19,7 @@ def main():
 
     # Create objects
     reader = StateFileReader(buffer=reader_output_queue)
-    builder = GraphBuilder(buffer=reader_output_queue, output_queue=None)
+    builder = GraphBuilder(buffer=reader_output_queue, output_queue=None, graph_type=GraphTypes.NodeTree)
     import datetime
     unique_run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     unique_filename = f'all_graphs_{unique_run_id}.pkl'
