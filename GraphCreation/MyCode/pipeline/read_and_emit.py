@@ -1,9 +1,12 @@
 import json
 from collections import defaultdict
 from queue import Queue
+import pyarrow.parquet as pq
+import pyarrow as pa
+import pandas as pd
 
 class StateFileReader:
-    def __init__(self, buffer, state_file='StateFiles/threaded_pipeline_state.json'):
+    def __init__(self, buffer, state_file='StateFiles/state.parquet'):
         self.state_file = state_file
         self.buffer = buffer
 
@@ -12,32 +15,25 @@ class StateFileReader:
         Reads the state file line by line and puts each line into the buffer.
         Each line contains a JSON object with node data.
         """
-        try:
-            with open(self.state_file, 'r') as f:
-                for line_num, line in enumerate(f, 1):
-                    if not line.strip():
-                        continue
+
+        pq_file = pq.ParquetFile(self.state_file)
+
+        state = {}
+        current_t = None
+
+        # Read in very small chunks using pyarrow iter_batches
+        for batch in pq_file.iter_batches(batch_size=100):
+            batch_df = batch.to_pandas()
+            for _, row in batch_df.iterrows():
+                state[row["node"]] = row.to_dict()
+                if current_t is None:
+                    current_t = row["timestamp"]
+                elif current_t != row["timestamp"]:
+                    print(current_t)
+                    self.buffer.put(state)
+                    current_t = row["timestamp"]
                     
-                    try:
-                        # Parse the JSON line
-                        state_data = json.loads(line.strip())
-                        
-                        # Put the parsed data into the buffer
-                        self.buffer.put(state_data)
-                        
-                    except json.JSONDecodeError as e:
-                        print(f"Error parsing JSON on line {line_num}: {e}")
-                        continue
-                    except Exception as e:
-                        print(f"Error processing line {line_num}: {e}")
-                        continue
-                        
-        except FileNotFoundError:
-            print(f"State file not found: {self.state_file}")
-        except Exception as e:
-            print(f"Error reading state file: {e}")
-        
-        # Signal end of data by putting None into buffer
+        self.buffer.put(state)
         self.buffer.put(None)
 
 

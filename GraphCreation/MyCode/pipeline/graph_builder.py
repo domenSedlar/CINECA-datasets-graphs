@@ -8,15 +8,32 @@ class GraphBuilder:
     def __init__(self, buffer, output_queue):
         self.buffer = buffer
         self.output_queue = output_queue
-        
+        self.graph = None
+
+    def _get_sensor_id(self, node_id, sensor_name):
+        return str(sensor_name) + "_n" + str(node_id)
+    
+    def _update_graph(self, state):
+        t = None
+        for node_id, node_data in state.items():
+            print(node_data)
+            for sensor, value in node_data.items():
+                if sensor == "rack_id" or sensor.lower()=="timestamp"or sensor == "node":
+                    continue
+            sensor_node_id = self._get_sensor_id(node_id, sensor)
+            if sensor_node_id in self.graph.nodes:
+                print(f"Updating {sensor_node_id} to value {value}")
+                self.graph.nodes[sensor_node_id]["value"] = value
+            else:
+                print(f"Node {sensor_node_id} not found in graph!")
     def build_graph_r_n_sg_s(self, state): # r_n_sg_s: rack_node_sensorGroup_sensor
         graph = nx.Graph()
         rack_nodes = []  # Track all rack nodes to connect them later
         
         # Process each node in the state
         for node_id, node_data in state.items():
-            rack_id = node_data.get('rack_id', 'unknown')
-            sensor_data = node_data.get('sensor_data', {})
+            rack_id = node_data['rack_id']
+            sensor_data = node_data
             
             # Add nodes to the graph
             # R1 (Rack) node
@@ -35,10 +52,10 @@ class GraphBuilder:
             
             # Process sensors
             sensors = {"temp": [], "power": [], "other": []}
-            
-
 
             for sensor_name, sensor_value in sensor_data.items():
+                if sensor_name == "rack_id" or sensor_name.lower()=="timestamp"or sensor_name =="node":
+                    continue
                 for sensor_type in sensors.keys():
                     if sensor_type in sensor_name.lower() or sensor_type == "other":
                         sensors[sensor_type].append((sensor_name, sensor_value))
@@ -51,9 +68,9 @@ class GraphBuilder:
                     graph.add_edge(node_node, sensor_node)
                     
                     for i, (sensor_name, sensor_value) in enumerate(sensor_list, 1):
-                        sensor_node = sensor_name + str(i) + "_n" + str(node_id)
+                        sensor_node = self._get_sensor_id(node_id, sensor_name)
                         graph.add_node(sensor_node, type=sensor_type + "_sensor", 
-                                    name=sensor_name, value=sensor_value)
+                                    name=sensor_node, value=sensor_value)
                         graph.add_edge(sensor_type + "_n" + str(node_id), sensor_node)
 
         # Connect all racks together in a clique
@@ -65,15 +82,21 @@ class GraphBuilder:
     
     def build_graph(self, graph_type=None):
         """Build graphs from the state data received in the buffer"""
+        state = self.buffer.get()
+        self.graph = self.build_graph_nn_s(state)
+        self.visualize_nn_s_graph(self.graph)
+
         while True:
             state = self.buffer.get()
             if state is None:
                 print("No more state data to process. Exiting.")
                 self.output_queue.put(None)
                 break
-                        
+            self._update_graph(state)
             # Put the graph in the output queue
-            self.output_queue.put(self.build_graph_nn_s(state))
+            self.visualize_nn_s_graph(self.graph)
+
+            self.output_queue.put(self.graph.copy())
 
     def build_graph_nn_s(self, state): # nn_s: node_sensor, all nodes connected to each other
         graph = nx.Graph()
@@ -84,9 +107,11 @@ class GraphBuilder:
             node_node = f"N{node_id}"
             node_nodes.append(node_node)
             graph.add_node(node_node, type='node', id=node_id)
-            for i, (sensor_name, sensor_value) in enumerate(node_data.get('sensor_data', {}).items(), 1):
-                sensor_node = sensor_name + str(i) + "_n" + str(node_id)
-                graph.add_node(sensor_node, type='sensor', name=sensor_name, value=sensor_value)
+            for sensor_name, sensor_value in node_data.items():
+                if sensor_name == "rack_id" or sensor_name.lower()=="timestamp"or sensor_name =="node":
+                    continue
+                sensor_node = self._get_sensor_id(node_id=node_id, sensor_name=sensor_name)
+                graph.add_node(sensor_node, type='sensor', name=sensor_node, value=sensor_value)
                 graph.add_edge(node_node, sensor_node)
         
         # Second pass: connect all nodes to each other
@@ -123,12 +148,30 @@ class GraphBuilder:
     def visualize_graph(self, graph, title="Sensor Network Graph", graph_type="hierarchical"):
         """Visualize the graph using matplotlib"""
         try:
+            import copy
+            # Work on a copy of the graph to avoid modifying the original
+            graph_to_draw = graph.copy()
+            max_sensors = 3
+            # For each node of type 'node', keep only the first 8 connected sensor nodes
+            # print(graph_to_draw.nodes)
+            sensors_to_remove = []
+            for node in list(graph_to_draw.nodes()):
+                node_data = graph_to_draw.nodes[node]
+                if node_data.get('type') == 'node':
+                    # Find connected sensor nodes
+                    sensor_neighbors = [n for n in graph_to_draw.neighbors(node)
+                                       if graph_to_draw.nodes[n].get('type') in ['sensor', 'temp_sensor', 'power_sensor', 'other_sensor']]
+                    sensors_to_remove.append(sensor_neighbors.copy())
+            # Only keep the first 8
+            for sensor_neighbors in sensors_to_remove:
+                for extra_sensor in sensor_neighbors[max_sensors:]:
+                    graph_to_draw.remove_node(extra_sensor)
             plt.figure(figsize=(22, 12))
             
             # Define node colors based on type
             node_colors = []
-            for node in graph.nodes():
-                node_data = graph.nodes[node]
+            for node in graph_to_draw.nodes():
+                node_data = graph_to_draw.nodes[node]
                 node_type = node_data.get('type', 'unknown')
                 if node_type == 'rack':
                     node_colors.append('lightblue')
@@ -153,27 +196,46 @@ class GraphBuilder:
                 else:
                     node_colors.append('white')
             
+            # Build custom labels to show node name and value (if present)
+            labels = {}
+            for node in graph_to_draw.nodes():
+                node_data = graph_to_draw.nodes[node]
+                value = node_data.get('value')
+                if value is not None:
+                    labels[node] = f"{node}\n{value}"
+                else:
+                    labels[node] = str(node)
+            
             # Choose layout based on graph type
             if graph_type == "nn_s":
-                pos = self._create_nn_s_layout(graph)
+                pos = self._create_nn_s_layout(graph_to_draw)
             else:
-                pos = self._create_hierarchical_layout(graph)
+                pos = self._create_hierarchical_layout(graph_to_draw)
             
             # Draw the graph with improved styling
-            nx.draw(graph, pos, 
-                   node_color=node_colors,
-                   node_size=2500,
-                   font_size=9,
-                   font_weight='bold',
-                   with_labels=True,
-                   edge_color='#2E86AB',
-                   width=1.5,
-                   alpha=0.8,
-                   arrowsize=15,
-                   arrowstyle='->',
-                   connectionstyle='arc3,rad=0.1')
-            
-            plt.title(title, fontsize=16, fontweight='bold', pad=20)
+            nx.draw(
+                graph_to_draw, pos,
+                node_color=node_colors,
+                node_size=1200,  # smaller nodes
+                font_size=7,     # smaller font
+                font_weight='bold',
+                with_labels=False,  # We'll use draw_networkx_labels for better control
+                edge_color='#2E86AB',
+                width=0.8,      # thinner edges
+                alpha=0.5,      # more transparent edges
+                arrowsize=12,
+                arrowstyle='->',
+                connectionstyle='arc3,rad=0.1'
+            )
+            # Draw labels with background for readability
+            nx.draw_networkx_labels(
+                graph_to_draw, pos, labels,
+                font_size=7,
+                font_color='black',
+                font_weight='bold',
+                bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.2', alpha=0.7)
+            )
+            plt.title(title, fontsize=14, fontweight='bold', pad=20)
             plt.tight_layout()
             plt.show()
             
@@ -221,7 +283,7 @@ class GraphBuilder:
                         sensor_index = i
                         break
                 
-                angle = 2 * 3.14159 * sensor_index / len(sensor_nodes)
+                angle = 2 * 3.14159 * sensor_index / (len(sensor_nodes)*0.01)
                 pos[sensor] = (parent_pos[0] + 1.5 * np.cos(angle), 
                               parent_pos[1] + 1.5 * np.sin(angle))
         

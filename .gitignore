@@ -212,3 +212,4 @@ SignalProcessing/outputs/
 GraphCreation/output_graphs/
 logs/
 graph_storage/
+StateFiles/
