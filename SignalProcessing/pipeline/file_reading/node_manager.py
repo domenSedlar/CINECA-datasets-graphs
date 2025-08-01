@@ -15,6 +15,7 @@ import gc
 import platform
 from common.memory_utils import log_memory_usage, get_queue_state, force_memory_cleanup
 import datetime
+import pyarrow.parquet as pq
 
 from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
@@ -166,6 +167,21 @@ class NodeManager:
                     continue
                 nodes.append(node_id)
                 file_paths.append(os.path.join(self.files_path, folder, file))
+                
+                table = pq.read_table(os.path.join(self.files_path, folder, file))
+                t = table.select(['timestamp']).slice(0, 1)['timestamp'].to_pandas().iloc[0]
+
+                if table is not None:
+                    if earliest_timestamp is None or t < earliest_timestamp:
+                        earliest_timestamp = t
+
+                nrows = table.num_rows if table.num_rows is not None else None
+                if nrows is not None:
+                    node_expected_rows[node_id] = nrows
+                    node_processed_rows[node_id] = 0
+                if nrows is not None and nrows > max_rows:
+                    max_rows = nrows
+                    max_file = f'{folder}:{file}'
 
         logger.info(f"Earliest measurement timestamp across all files: {earliest_timestamp}")
         logger.info(f"File with most rows: {max_file} with {max_rows} rows")
@@ -244,7 +260,7 @@ class NodeManager:
                     to_remove.append(node_id)
                 else:
                     batch[node_id] = copy.copy(reading)
-                    # self.node_processed_rows[node_id] += 1
+                    self.node_processed_rows[node_id] += 1
             for node_id in to_remove:
                 active_nodes.remove(node_id)
                 unactive_nodes.add(node_id)
