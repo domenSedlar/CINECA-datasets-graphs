@@ -74,13 +74,15 @@ class ChangeLevelDetector:
             timestamp = node_data.get('timestamp')
             sensor_data = node_data.get('sensor_data', {})
             for sensor, value in sensor_data.items():
-                if value is None:
-                    # logger.warning(f"Value is None for node: {node}, sensor: {sensor}, timestamp: {timestamp}")
-                    continue
                 key = (node, sensor)
+                
                 if key not in self.adwins:
                     # logger.info(f"Created new ADWIN for {key}")
                     self.adwins[key] = ADWIN(delta=self.delta, clock=self.clock)
+
+                if value is None:
+                    # logger.warning(f"Value is None for node: {node}, sensor: {sensor}, timestamp: {timestamp}")
+                    continue
 
                 adwin = self.adwins[key]
                 adwin.update(value)
@@ -95,7 +97,7 @@ class ChangeLevelDetector:
         if drift_detected:
             self.drift_count += 1
             output = []
-            for (node, sensor), quantile in self.medians.items():
+            for (node, sensor) in self.adwins.keys():
                 median = self._get_median(node, sensor)
                 # Try to get timestamp from batch if possible
                 timestamp = batch.get(node, {}).get('timestamp')
@@ -103,7 +105,7 @@ class ChangeLevelDetector:
                 
                 if (node, sensor) in drift_pairs:
                     self._reset_median(node, sensor)
-                
+
                 output.append({
                     'sensor': sensor,
                     'node': node,

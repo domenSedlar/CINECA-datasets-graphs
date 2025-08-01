@@ -13,13 +13,14 @@ logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
 
 def run():
     limit_nodes = None
+    limit_racks = True
     delta=0.5
     clock=3
     bq_max_size=300
     rows_in_mem=300
     temp_dir_loc="E:/temp_parquet_files"
 
-    vars_to_log = ['limit_nodes', 'delta', 'clock', 'bq_max_size', 'rows_in_mem']
+    vars_to_log = ['limit_nodes', 'limit_racks', 'delta', 'clock', 'bq_max_size', 'rows_in_mem']
     log_message = ""
     for var in vars_to_log:
         log_message += var + ": " + str(locals()[var]) + ", "
@@ -44,7 +45,7 @@ def run():
     stop_event = threading.Event()
 
     # Set up pipeline stages
-    node_manager = NodeManager(buffer=buffer_queue, limit_nodes=limit_nodes, temp_dir=temp_dir_loc, rows_in_mem=rows_in_mem)
+    node_manager = NodeManager(buffer=buffer_queue, limit_nodes=limit_nodes, temp_dir=temp_dir_loc, rows_in_mem=rows_in_mem, limit_racks=limit_racks)
     change_detector = ChangeLevelDetector(buffer_queue, change_queue)
     state_builder = StateBuilder(change_queue, state_queue)
     state_persister = StatePersister(state_queue, output_file=output_file)

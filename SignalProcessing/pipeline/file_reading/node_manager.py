@@ -20,12 +20,12 @@ from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
 
 class NodeManager:
-    def __init__(self, buffer: Queue, tarfiles_path='./TarFiles/', interval_seconds=60*15, limit_nodes=None, rows_in_mem=10, temp_dir="D:/temp_parquet_files"):
+    def __init__(self, buffer: Queue, tarfiles_path='./TarFiles/', interval_seconds=60*15, limit_nodes=None, rows_in_mem=10, temp_dir="D:/temp_parquet_files", limit_racks=False):
         self.files_path = tarfiles_path # only read the first 2 racks for testing
         self.interval_seconds = interval_seconds
         self.buffer = buffer
         self.sensor_columns = None # limits which sensors we read
-        self.setup_par_files(rows_in_mem, temp_dir, limit_nodes)
+        self.setup_par_files(rows_in_mem, temp_dir, limit_nodes, limit_racks=limit_racks)
         
     def setup_tar_files(self, rows_in_mem, temp_dir, limit_nodes):
                 # Scan all tar files and .parquet members in a single pass, collecting node info and earliest timestamp
@@ -133,7 +133,7 @@ class NodeManager:
         # self.node_expected_rows = node_expected_rows
         # self.node_processed_rows = node_processed_rows
 
-    def setup_par_files(self, rows_in_mem, temp_dir, limit_nodes):
+    def setup_par_files(self, rows_in_mem, temp_dir, limit_nodes, limit_racks=False):
         # Scan all tar files and .parquet members in a single pass, collecting node info and earliest timestamp
         nodes = []
         file_paths = []
@@ -146,7 +146,7 @@ class NodeManager:
         node_processed_rows = {}  # node_id -> processed row count
 
         for folder in os.listdir(self.files_path):
-            if not os.path.basename(folder) == "0":
+            if (not os.path.basename(folder) == "0") and limit_racks:
                 continue
             if not os.path.isdir(os.path.join(self.files_path, folder)): 
                 continue
