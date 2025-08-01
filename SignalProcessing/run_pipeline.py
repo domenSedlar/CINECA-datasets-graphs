@@ -12,7 +12,7 @@ from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
 
 def run():
-    limit_nodes = None
+    limit_nodes = 0
     limit_racks = True
     delta=0.5
     clock=3
@@ -46,7 +46,7 @@ def run():
 
     # Set up pipeline stages
     node_manager = NodeManager(buffer=buffer_queue, limit_nodes=limit_nodes, temp_dir=temp_dir_loc, rows_in_mem=rows_in_mem, limit_racks=limit_racks)
-    change_detector = ChangeLevelDetector(buffer_queue, change_queue)
+    change_detector = ChangeLevelDetector(buffer_queue, change_queue, delta=delta, clock=clock)
     state_builder = StateBuilder(change_queue, state_queue)
     state_persister = StatePersister(state_queue, output_file=output_file)
 

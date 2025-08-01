@@ -78,6 +78,7 @@ class MemoryMonitor:
         self.start_time = time.time()
     
     def check_memory(self, context=""):
+        return
         """Check current memory and log if needed"""
         process = psutil.Process(os.getpid())
         current_memory = process.memory_info().rss / 1024 / 1024  # MB

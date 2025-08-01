@@ -89,9 +89,12 @@ class ChangeLevelDetector:
                 self._add_to_median(node, sensor, value)
                 self._add_to_queue(node, sensor, value)
 
+    
+
                 if adwin.drift_detected:
                     drift_detected = True
                     drift_pairs.add(key)
+   
 
         # If any drift detected, output all medians for all pairs
         if drift_detected:

@@ -9,7 +9,7 @@ import platform
 
 from common.memory_utils import log_memory_usage, force_memory_cleanup
 from common.logger import Logger
-logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
+logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
 
 class StateBuilder:
     def __init__(self, input_queue, output_queue, batch_size=5, max_queue_size=50):
@@ -62,7 +62,7 @@ class StateBuilder:
 
                 # Otherwise, only update if all fields are present (i.e., value is not None)
                 if None in (sensor, node, value, timestamp):
-                    logger.warning(f"Incomplete sensor data: {sensor_data}")
+                    # logger.warning(f"Incomplete sensor data: {sensor_data}")
                     continue
 
                 # Always update timestamp and rack_id to the latest, and update sensor value
@@ -75,8 +75,13 @@ class StateBuilder:
             # If batch is full or queue is getting large, flush the batch
             if len(self.pending_states) >= self.batch_size or self.output_queue.qsize() > self.max_queue_size // 2:
                 if self.pending_states:
-                    
-                    self.output_queue.put(copy.deepcopy(self.pending_states))
+                    if self.output_queue.full():
+                        logger.info("full")
+                        self.output_queue.put(copy.deepcopy(self.pending_states))
+                        logger.info("continuing")
+                    else:
+                        self.output_queue.put(copy.deepcopy(self.pending_states))
+                        
                     logger.debug(f"StateBuilder: Flushed batch of {len(self.pending_states)} states, queue size: {self.output_queue.qsize()}")
 
                     self.pending_states = []
