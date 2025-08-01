@@ -12,8 +12,8 @@ from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
 
 def run():
-    limit_nodes = 0
-    limit_racks = True
+    limit_nodes = None
+    limit_racks = False
     delta=0.5
     clock=3
     bq_max_size=300
