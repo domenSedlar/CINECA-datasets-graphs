@@ -9,7 +9,7 @@ import platform
 
 from common.memory_utils import log_memory_usage, force_memory_cleanup
 from common.logger import Logger
-logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
+logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
 class StateBuilder:
     def __init__(self, input_queue, output_queue, batch_size=5, max_queue_size=50):

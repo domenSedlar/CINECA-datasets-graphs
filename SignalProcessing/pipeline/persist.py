@@ -24,7 +24,7 @@ class StatePersister:
     def __init__(self, input_queue, output_file='latest_state.json', batch_write_size=25):
         self.input_queue = input_queue
         self.output_file = output_file
-        self.batch_write_size = 25  # Reduced from 100 for more aggressive memory management
+        self.batch_write_size = batch_write_size
         self.state_buffer = []  # Buffer for batch writing
 
         self.writer = None
@@ -130,9 +130,9 @@ class StatePersister:
         batch_count = 0
         while True:
             if self.input_queue.empty():
-                logger.info("waiting, queue empty")
+                # logger.info("waiting, queue empty")
                 state_data = self.input_queue.get()
-                logger.info("continuing")
+                # logger.info("continuing")
             else:
                 state_data = self.input_queue.get()
             

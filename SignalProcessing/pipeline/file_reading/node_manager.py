@@ -249,7 +249,7 @@ class NodeManager:
                 break
             to_remove = []
                             
-            logger.debug("reading data from nodes")
+            # logger.debug("reading data from nodes")
 
             for node_id in active_nodes:
                 if stop_event and stop_event.is_set():
@@ -296,13 +296,6 @@ class NodeManager:
                     break
 
         self.buffer.put(None)
-        # After processing, log expected vs actual rows per node
-        logger.info("NodeManager: Checking processed row counts per node...")
-        for node_id, man in self.node_managers.items():
-            if self.expected_rows[node_id] != self.processed_rows[node_id]:
-                logger.warning(f"Node {node_id}: Expected {self.expected_rows[node_id]} rows, processed {self.processed_rows[node_id]} rows!")
-            else:
-                logger.info(f"Node {node_id}: Processed all {self.processed_rows[node_id]} rows as expected.")
 
 def main():
     import argparse

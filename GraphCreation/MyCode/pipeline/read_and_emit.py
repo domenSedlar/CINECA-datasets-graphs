@@ -22,18 +22,29 @@ class StateFileReader:
         state = {}
         current_t = None
 
-        # Read in very small chunks using pyarrow iter_batches
         for batch in pq_file.iter_batches(batch_size=100):
-            batch_df = batch.to_pandas()
-            for _, row in batch_df.iterrows():
-                if current_t is None:
-                    current_t = row["timestamp"]
-                elif current_t != row["timestamp"]:
-                    self.buffer.put(deepcopy(state))
-                    state = {}
-                    current_t = row["timestamp"]
-                state[row["node"]] = deepcopy(row.to_dict())
+            # Convert to Python objects column-wise without Pandas
+            timestamps = batch.column("timestamp")
+            nodes = batch.column("node")
+            
+            # Convert once for the entire batch to Python scalars
+            # Avoid per-row overhead
+            ts_values = timestamps.to_pylist()
+            node_values = nodes.to_pylist()
 
+            # Precompute the row dicts once
+            # This avoids deepcopies of the same Arrow Row multiple times
+            all_rows = batch.to_pylist()
+
+            for i, ts in enumerate(ts_values):
+                if current_t is None:
+                    current_t = ts
+                elif ts != current_t:
+                    self.buffer.put(deepcopy(state))
+                    state.clear()
+                    current_t = ts
+
+                state[node_values[i]] = all_rows[i]
                     
         self.buffer.put(state)
         self.buffer.put(None)

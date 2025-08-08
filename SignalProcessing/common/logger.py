@@ -2,7 +2,7 @@ import logging
 import os
 
 class Logger:
-    def __init__(self, name=__name__, log_file='pipeline.log', log_dir='logs'):
+    def __init__(self, name=__name__, log_file='pipeline.log', log_dir='logs', rack='None'):
         self.logger_fake = logging.getLogger("idk")
 
         self.logger = logging.getLogger(name)
@@ -22,7 +22,7 @@ class Logger:
             self.log_dir = log_dir
 
             current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
-            log_filename = f"{os.path.splitext(os.path.basename(name if name != '__main__' else 'main'))[0]}.log"
+            log_filename = f"{os.path.splitext(os.path.basename(name if name != '__main__' else 'main'))[0]}_{rack}.log"
             log_path = os.path.join(os.getcwd(), self.log_dir, current_time)
             os.makedirs(log_path, exist_ok=True)
             log_file = os.path.join(log_path, log_filename)

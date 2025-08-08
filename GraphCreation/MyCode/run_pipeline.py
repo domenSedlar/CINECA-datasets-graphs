@@ -3,6 +3,7 @@ import os
 import threading
 import time
 from queue import Queue
+import cProfile
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'pipeline'))
 
@@ -48,4 +49,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main() 
+    main()
