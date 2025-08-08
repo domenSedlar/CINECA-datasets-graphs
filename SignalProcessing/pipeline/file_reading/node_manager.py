@@ -284,7 +284,7 @@ class NodeManager:
                         "buffer" : self.buffer
                     }))
 
-                    log_memory_usage()
+                    log_memory_usage(f"NodeManager.run batch {rows_processed}",)
                     # Force memory cleanup periodically
 
                     force_memory_cleanup()

@@ -135,7 +135,7 @@ class ChangeLevelDetector:
                     'rack_id': rack_id
                 })
 
-        self.output_queue.put("BATCH_END")
+            self.output_queue.put("BATCH_END")
 
         self.t2.end()
         
@@ -175,7 +175,7 @@ class ChangeLevelDetector:
                 self.output_queue.put(None)
                 break
             if batch_count % 200 == 0:
-                log_memory_usage(buffer=self.input_queue, output_queue=self.output_queue)
+                log_memory_usage(f"ChangeDetector.run batch {batch_count}",buffer=self.input_queue, output_queue=self.output_queue)
                 force_memory_cleanup()
                 logger.info(f"processed {batch_count} batches")
             self.process_batch(reading)

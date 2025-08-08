@@ -60,8 +60,8 @@ def run():
     # Set up queues for each stage with size limits for backpressure
     # Use multiprocessing.Queue for inter-process communication
     buffer_queue = multiprocessing.Queue(maxsize=bq_max_size)     # NodeManager → ChangeLevelDetector
-    change_queue = multiprocessing.Queue(maxsize=bq_max_size)     # ChangeLevelDetector → StateBuilder
-    state_queue = multiprocessing.Queue(maxsize=bq_max_size)     # StateBuilder → StatePersister
+    change_queue = multiprocessing.Queue(maxsize=bq_max_size*10)     # ChangeLevelDetector → StateBuilder
+    state_queue = multiprocessing.Queue(maxsize=bq_max_size*10)     # StateBuilder → StatePersister
 
     output_file = f'./outputs/threaded_pipeline_state_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.parquet'
 

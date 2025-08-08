@@ -54,7 +54,7 @@ class StateBuilder:
                     continue
 
                 # Otherwise, only update if all fields are present (i.e., value is not None)
-                if None in (sensor, node, value, timestamp):
+                if None in (sensor, node, value):
                     # logger.warning(f"Incomplete sensor data: {sensor_data}")
                     continue
 
@@ -67,12 +67,12 @@ class StateBuilder:
                 batch_count += 1
 
                 for node, d in self.states.items():
+
                     self.pending_states.append(copy.copy(d)) # d = {node: , rack_id: , timestamp: , sensor1: , sensor2: ,...}
                 
                             # Log more frequently to debug
                 if batch_count % 100 == 0:  # Changed from 100 to 10 for more frequent logging
                     log_memory_usage(f"StateBuilder.run batch {batch_count}", input_queue=self.input_queue, output_queue=self.output_queue)
-            
             # If batch is full or queue is getting large, flush the batch
             if len(self.pending_states) >= self.batch_size or self.output_queue.qsize() > self.max_queue_size // 2:
                 if self.pending_states:
