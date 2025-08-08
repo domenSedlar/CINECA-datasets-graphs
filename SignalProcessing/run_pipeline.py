@@ -1,5 +1,6 @@
 import threading
 import queue
+import multiprocessing
 from pipeline.file_reading.node_manager import NodeManager
 from pipeline.changes.change_detector import ChangeLevelDetector
 from pipeline.state_builder import StateBuilder
@@ -11,16 +12,43 @@ import datetime
 from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
 
+def node_manager_process(buffer_queue, stop_event, limit_nodes, limit_racks, temp_dir, rows_in_mem):
+    """NodeManager process function that can be pickled"""
+    node_manager = NodeManager(
+        buffer=buffer_queue, 
+        limit_nodes=limit_nodes, 
+        temp_dir=temp_dir, 
+        rows_in_mem=rows_in_mem, 
+        limit_racks=limit_racks
+    )
+    node_manager.iterate_batches(stop_event=stop_event)
+
+def change_detector_process(buffer_queue, change_queue, delta, clock):
+    """ChangeDetector process function that can be pickled"""
+    change_detector = ChangeLevelDetector(buffer_queue, change_queue, delta=delta, clock=clock)
+    change_detector.run()
+
+def state_builder_process(change_queue, state_queue):
+    """StateBuilder process function that can be pickled"""
+    state_builder = StateBuilder(change_queue, state_queue)
+    state_builder.run()
+
+def state_persister_process(state_queue, output_file, batch_write_size):
+    """StatePersister process function that can be pickled"""
+    state_persister = StatePersister(state_queue, output_file=output_file, batch_write_size=batch_write_size)
+    state_persister.run()
+
 def run():
     limit_nodes = None
-    limit_racks = False
+    limit_racks = None
     delta=0.5
     clock=3
-    bq_max_size=300
-    rows_in_mem=300
+    rows_in_mem=100
+    bq_max_size=2*rows_in_mem
     temp_dir_loc="E:/temp_parquet_files"
+    batch_write_size=50
 
-    vars_to_log = ['limit_nodes', 'limit_racks', 'delta', 'clock', 'bq_max_size', 'rows_in_mem']
+    vars_to_log = ['limit_nodes', 'limit_racks', 'delta', 'clock', 'bq_max_size', 'rows_in_mem', 'batch_write_size']
     log_message = ""
     for var in vars_to_log:
         log_message += var + ": " + str(locals()[var]) + ", "
@@ -29,11 +57,11 @@ def run():
     # Initialize memory monitor
     memory_monitor = MemoryMonitor(log_interval=50)
     
-        # Set up queues for each stage with size limits for backpressure
-    # Create queues with smaller sizes for more aggressive memory management
-    buffer_queue = queue.Queue(maxsize=bq_max_size)     # NodeManager → ChangeLevelDetector (reduced from 200)
-    change_queue = queue.Queue(maxsize=500)     # ChangeLevelDetector → StateBuilder (reduced from 100)
-    state_queue = queue.Queue(maxsize=500)     # StateBuilder → StatePersister (reduced from 500)
+    # Set up queues for each stage with size limits for backpressure
+    # Use multiprocessing.Queue for inter-process communication
+    buffer_queue = multiprocessing.Queue(maxsize=bq_max_size)     # NodeManager → ChangeLevelDetector
+    change_queue = multiprocessing.Queue(maxsize=bq_max_size)     # ChangeLevelDetector → StateBuilder
+    state_queue = multiprocessing.Queue(maxsize=bq_max_size)     # StateBuilder → StatePersister
 
     output_file = f'./outputs/threaded_pipeline_state_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.parquet'
 
@@ -41,36 +69,46 @@ def run():
     if os.path.exists(output_file):
         os.remove(output_file)
 
-    # Create the stop event
-    stop_event = threading.Event()
+    # Create the stop event (multiprocessing.Event)
+    stop_event = multiprocessing.Event()
 
-    # Set up pipeline stages
-    node_manager = NodeManager(buffer=buffer_queue, limit_nodes=limit_nodes, temp_dir=temp_dir_loc, rows_in_mem=rows_in_mem, limit_racks=limit_racks)
-    change_detector = ChangeLevelDetector(buffer_queue, change_queue, delta=delta, clock=clock)
-    state_builder = StateBuilder(change_queue, state_queue)
-    state_persister = StatePersister(state_queue, output_file=output_file)
-
-    # Create threads
-    threads = [
-        threading.Thread(target=lambda: node_manager.iterate_batches(stop_event=stop_event), name="NodeManagerThread"),
-        threading.Thread(target=change_detector.run, name="ChangeLevelDetectorThread"),
-        threading.Thread(target=state_builder.run, name="StateBuilderThread"),
-        threading.Thread(target=state_persister.run, name="StatePersisterThread"),
+    # Create processes with function-based targets that can be pickled
+    processes = [
+        multiprocessing.Process(
+            target=node_manager_process, 
+            args=(buffer_queue, stop_event, limit_nodes, limit_racks, temp_dir_loc, rows_in_mem),
+            name="NodeManagerProcess"
+        ),
+        multiprocessing.Process(
+            target=change_detector_process, 
+            args=(buffer_queue, change_queue, delta, clock),
+            name="ChangeLevelDetectorProcess"
+        ),
+        multiprocessing.Process(
+            target=state_builder_process, 
+            args=(change_queue, state_queue),
+            name="StateBuilderProcess"
+        ),
+        multiprocessing.Process(
+            target=state_persister_process, 
+            args=(state_queue, output_file, batch_write_size),
+            name="StatePersisterProcess"
+        ),
     ]
 
-    # Start threads
-    for t in threads:
-        t.start()
+    # Start processes
+    for p in processes:
+        p.start()
 
-    logger.info(f"Started all threads")
+    logger.info(f"Started all processes")
 
     try:
-        while any(t.is_alive() for t in threads):
+        while any(p.is_alive() for p in processes):
             # Monitor memory usage
             memory_monitor.check_memory("Pipeline-Main")
             
-            for t in threads:
-                t.join(timeout=0.5)
+            for p in processes:
+                p.join(timeout=0.5)
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt received! Setting stop event and sending sentinels.")
         stop_event.set()
@@ -79,19 +117,13 @@ def run():
             change_queue.put(None)
             state_queue.put(None)
         logger.info("Sentinels sent to all queues.")
-        for t in threads:
-            t.join(timeout=5)
+        for p in processes:
+            p.join(timeout=5)
         logger.info("Pipeline killed by user.")
 
     # Print final memory summary
-    summary = memory_monitor.get_summary()
     logger.info(f"Pipeline complete. Output written to {output_file}")
-    logger.info(f"Memory Summary: Initial={summary['initial_memory']:.2f}MB, "
-                f"Final={summary['current_memory']:.2f}MB, "
-                f"Peak={summary['peak_memory']:.2f}MB, "
-                f"Total Δ={summary['total_delta']:+.2f}MB, "
-                f"Stable={summary['memory_stable']}, "
-                f"Elapsed={summary['elapsed_time']:.1f}s")
+
 
 # Parameter sweep and evaluation logic has been moved to evaluate_parameters.py
 # To run parameter sweeps, use: python evaluate_parameters.py

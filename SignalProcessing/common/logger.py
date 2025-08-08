@@ -13,7 +13,7 @@ class Logger:
 
             # Console handler
             ch = logging.StreamHandler()
-            ch.setFormatter(logging.Formatter('[%(filename)s] %(levelname)s: %(message)s'))
+            ch.setFormatter(logging.Formatter('[%(asctime)s] [%(filename)s] %(levelname)s: %(message)s'))
             ch.setLevel(logging.INFO)
             self.logger.addHandler(ch)
 
@@ -41,7 +41,7 @@ class Logger:
 
     def get_logger(self):
         """Expose the internal `logging.Logger` instance."""
-        return self.logger_fake
+        return self.logger
     
     def get_logger_real(self):
         return self.logger

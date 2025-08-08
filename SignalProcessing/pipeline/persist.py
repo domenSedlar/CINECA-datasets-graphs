@@ -21,10 +21,10 @@ def default_serializer(obj):
     return str(obj)
 
 class StatePersister:
-    def __init__(self, input_queue, output_file='latest_state.json', batch_write_size=25):
+    def __init__(self, input_queue, output_file='latest_state.json', batch_write_size=50):
         self.input_queue = input_queue
         self.output_file = output_file
-        self.batch_write_size = 25  # Reduced from 100 for more aggressive memory management
+        self.batch_write_size = batch_write_size
         self.state_buffer = []  # Buffer for batch writing
 
         self.writer = None
@@ -121,7 +121,6 @@ class StatePersister:
     pa.field("ps1_output_volta_avg", pa.float64(), nullable=True),
     pa.field("total_power_avg", pa.float64(), nullable=True),
     pa.field("value", pa.float64(), nullable=True),
-    pa.field("__index_level_0__", pa.float64(), nullable=True),
 ])
 
     def run(self, timeout=0):
@@ -130,9 +129,9 @@ class StatePersister:
         batch_count = 0
         while True:
             if self.input_queue.empty():
-                logger.info("waiting, queue empty")
+                # logger.info("waiting, queue empty")
                 state_data = self.input_queue.get()
-                logger.info("continuing")
+                # logger.info("continuing")
             else:
                 state_data = self.input_queue.get()
             
@@ -141,6 +140,7 @@ class StatePersister:
                 logger.info("No more data, flushing")
                 if self.state_buffer:
                     self._write_batch(self.state_buffer)
+                    gc.collect()
                 logger.info("Ending loop")
                 break
             
@@ -160,36 +160,30 @@ class StatePersister:
                 self._write_batch(self.state_buffer)
                 self.state_buffer = []
                 # Force memory cleanup after batch writing
-                force_memory_cleanup()
             
-            if rows_written % 1000 == 0:
+            if rows_written % 500 == 0:
                 logger.info(f"StatePersister: Written {rows_written} rows.")
+                force_memory_cleanup()
             batch_count += 1
-            if batch_count % 100 == 0:
-                log_memory_usage(f"StatePersister.run batch {batch_count}", input_queue=self.input_queue, var_name="state_queue")
-        
+
         self.writer.close()
 
         
     
     def _write_batch(self, states_batch):
         """Write a batch of states to file, maintaining order"""
-        flat_data = []
-        for state in states_batch:
-            for _, entery in state.items():
-                flat_data.append(entery)
+        # logger.info("writting")
+        flat_data = states_batch
 
-        v = flat_data[0]['value']
-        flat_data[0]['value'] = 0
         df = pd.DataFrame(flat_data)
         table = pa.Table.from_pandas(df, schema=self.schema)
 
         if self.writer is None:
-
-
             self.writer = pq.ParquetWriter(
                 self.output_file,
                 self.schema,
                 use_dictionary=True,
             )
         self.writer.write_table(table)
+        del df, flat_data, table
+        # logger.info("wrote")
