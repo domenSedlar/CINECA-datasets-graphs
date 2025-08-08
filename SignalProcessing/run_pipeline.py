@@ -7,13 +7,14 @@ from pipeline.persist import StatePersister
 from common.memory_utils import MemoryMonitor
 import os
 import datetime
+import sys
 
 from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
 
 def run():
     limit_nodes = None
-    limit_racks = False
+    limit_racks = int(sys.argv[1])
     delta=0.5
     clock=3
     bq_max_size=300
@@ -52,7 +53,7 @@ def run():
 
     # Create threads
     threads = [
-        threading.Thread(target=lambda: node_manager.iterate_batches(stop_event=stop_event), name="NodeManagerThread"),
+        threading.Thread(target=lambda: node_manager.iterate_batches(stop_event=stop_event, final_log_frequency=5000), name="NodeManagerThread"),
         threading.Thread(target=change_detector.run, name="ChangeLevelDetectorThread"),
         threading.Thread(target=state_builder.run, name="StateBuilderThread"),
         threading.Thread(target=state_persister.run, name="StatePersisterThread"),
@@ -82,19 +83,6 @@ def run():
         for t in threads:
             t.join(timeout=5)
         logger.info("Pipeline killed by user.")
-
-    # Print final memory summary
-    summary = memory_monitor.get_summary()
-    logger.info(f"Pipeline complete. Output written to {output_file}")
-    logger.info(f"Memory Summary: Initial={summary['initial_memory']:.2f}MB, "
-                f"Final={summary['current_memory']:.2f}MB, "
-                f"Peak={summary['peak_memory']:.2f}MB, "
-                f"Total Δ={summary['total_delta']:+.2f}MB, "
-                f"Stable={summary['memory_stable']}, "
-                f"Elapsed={summary['elapsed_time']:.1f}s")
-
-# Parameter sweep and evaluation logic has been moved to evaluate_parameters.py
-# To run parameter sweeps, use: python evaluate_parameters.py
 
 if __name__ == "__main__":
     run()
