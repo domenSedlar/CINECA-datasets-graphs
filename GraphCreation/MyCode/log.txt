@@ -1,0 +1,127 @@
+2020-03-18T16:15:00+00:00
+node                                          2
+timestamp             2020-03-18T17:00:00+00:00
+rack_id                                       0
+ambient_avg                           19.746665
+dimm0_temp_avg                        26.982686
+                                ...            
+p0_core11_temp_avg                          NaN
+p1_core0_temp_avg                           NaN
+p1_core1_temp_avg                           NaN
+p0_core0_temp_avg                           NaN
+p0_core1_temp_avg                           NaN
+Name: 16, Length: 107, dtype: object
+2020-03-18T17:00:00+00:00
+node                                          2
+timestamp             2020-03-18T17:45:00+00:00
+rack_id                                       0
+ambient_avg                           19.737774
+dimm0_temp_avg                        26.982686
+                                ...            
+p0_core11_temp_avg                          NaN
+p1_core0_temp_avg                           NaN
+p1_core1_temp_avg                           NaN
+p0_core0_temp_avg                           NaN
+p0_core1_temp_avg                           NaN
+Name: 32, Length: 107, dtype: object
+2020-03-18T17:45:00+00:00
+node                                          2
+timestamp             2020-03-18T18:30:00+00:00
+rack_id                                       0
+ambient_avg                           19.548614
+dimm0_temp_avg                        26.911348
+                                ...            
+p0_core11_temp_avg                          NaN
+p1_core0_temp_avg                           NaN
+p1_core1_temp_avg                           NaN
+p0_core0_temp_avg                           NaN
+p0_core1_temp_avg                           NaN
+Name: 48, Length: 107, dtype: object
+2020-03-18T18:30:00+00:00
+node                                          2
+timestamp             2020-03-18T19:15:00+00:00
+rack_id                                       0
+ambient_avg                           19.712388
+dimm0_temp_avg                        25.466667
+                                ...            
+p0_core11_temp_avg                          NaN
+p1_core0_temp_avg                           NaN
+p1_core1_temp_avg                           NaN
+p0_core0_temp_avg                           NaN
+p0_core1_temp_avg                           NaN
+Name: 64, Length: 107, dtype: object
+2020-03-18T19:15:00+00:00
+node                                          2
+timestamp             2020-03-18T20:00:00+00:00
+rack_id                                       0
+ambient_avg                           19.604656
+dimm0_temp_avg                        25.466667
+                                ...            
+p0_core11_temp_avg                          NaN
+p1_core0_temp_avg                           NaN
+p1_core1_temp_avg                           NaN
+p0_core0_temp_avg                           NaN
+p0_core1_temp_avg                           NaN
+Name: 80, Length: 107, dtype: object
+2020-03-18T20:00:00+00:00
+node                                          2
+timestamp             2020-03-18T20:45:00+00:00
+rack_id                                       0
+ambient_avg                           19.712388
+dimm0_temp_avg                        25.612346
+                                ...            
+p0_core11_temp_avg                          NaN
+p1_core0_temp_avg                           NaN
+p1_core1_temp_avg                           NaN
+p0_core0_temp_avg                           NaN
+p0_core1_temp_avg                           NaN
+Name: 96, Length: 107, dtype: object
+2020-03-18T20:45:00+00:00
+node                                          2
+timestamp             2020-03-18T21:30:00+00:00
+rack_id                                       0
+ambient_avg                           19.628569
+dimm0_temp_avg                        25.517037
+                                ...            
+p0_core11_temp_avg                          NaN
+p1_core0_temp_avg                           NaN
+p1_core1_temp_avg                           NaN
+p0_core0_temp_avg                           NaN
+p0_core1_temp_avg                           NaN
+Name: 12, Length: 107, dtype: object
+2020-03-18T21:30:00+00:00
+node                                          2
+timestamp             2020-03-18T22:15:00+00:00
+rack_id                                       0
+ambient_avg                           19.626639
+dimm0_temp_avg                        25.517037
+                                ...            
+p0_core11_temp_avg                          NaN
+p1_core0_temp_avg                           NaN
+p1_core1_temp_avg                           NaN
+p0_core0_temp_avg                           NaN
+p0_core1_temp_avg                           NaN
+Name: 28, Length: 107, dtype: object
+2020-03-18T22:15:00+00:00
+node                                          2
+timestamp             2020-03-18T23:00:00+00:00
+rack_id                                       0
+ambient_avg                           19.626639
+dimm0_temp_avg                        25.559481
+                                ...            
+p0_core11_temp_avg                          NaN
+p1_core0_temp_avg                           NaN
+p1_core1_temp_avg                           NaN
+p0_core0_temp_avg                           NaN
+p0_core1_temp_avg                           NaN
+Name: 44, Length: 107, dtype: object
+2020-03-18T17:00:00+00:00 19.74666476779514
+2020-03-18T17:45:00+00:00 19.73777398003472
+2020-03-18T18:30:00+00:00 19.548613793643902
+2020-03-18T19:15:00+00:00 19.71238828456549
+2020-03-18T20:00:00+00:00 19.604656363028067
+2020-03-18T20:45:00+00:00 19.71238828456549
+2020-03-18T21:30:00+00:00 19.628569002661685
+2020-03-18T22:15:00+00:00 19.626639202569336
+2020-03-18T23:00:00+00:00 19.626639202569336
+No more state data to process. Exiting.

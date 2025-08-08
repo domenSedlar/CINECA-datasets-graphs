@@ -1,0 +1,113 @@
+import tarfile
+import io
+import pandas as pd
+from collections import defaultdict
+from datetime import timedelta
+
+class NodeSensorManager:
+    def __init__(self, node_id, tar_path, timestamp_col='timestamp', interval_seconds=60*15):
+        self.node_id = node_id
+        self.tar_path = tar_path
+        self.timestamp_col = timestamp_col
+        self.interval = timedelta(seconds=interval_seconds)
+        self.sensor_generators = {}
+        self.current_readings = {}
+        self.current_times = {}
+        self.earliest_current_time = None  # Track the earliest current reading time
+        self._prepare_generators()
+
+    def _prepare_generators(self):
+        # Map sensor name to list of member objects (parquet files)
+        sensor_files = defaultdict(list)
+        with tarfile.open(self.tar_path, 'r') as tar:
+            for member in tar.getmembers():
+                if member.isfile() and member.name.endswith('.parquet'):
+                    # Extract sensor name from the folder structure
+                    parts = member.name.split('/')
+                    if len(parts) >= 2:
+                        sensor = parts[-2]
+                        sensor_files[sensor].append(member)
+        # For each sensor, create a generator and store the first reading within the interval after midnight
+        with tarfile.open(self.tar_path, 'r') as tar:
+            found_generators = 0
+            for sensor, members in sensor_files.items():
+                if found_generators >= 2: # Only two sensors for now
+                    break
+                gen = self._sensor_row_generator(sensor, members, tar)
+                first = None
+                try:
+                    first = next(gen)
+                    self.current_readings[sensor] = first
+                    self.sensor_generators[sensor] = gen
+                    current_time = pd.to_datetime(first[self.timestamp_col]) if first is not None else None
+                    self.current_times[sensor] = current_time
+                    # Update earliest_current_time
+                    if current_time is not None:
+                        if self.earliest_current_time is None or current_time < self.earliest_current_time:
+                            self.earliest_current_time = current_time
+                    found_generators += 1
+                except StopIteration:
+                    # No data for this sensor/node
+                    print(f"No data for sensor '{sensor}' and node '{self.node_id}'")
+                    self.current_readings[sensor] = None
+                    self.sensor_generators[sensor] = gen
+                    self.current_times[sensor] = None
+
+    def _sensor_row_generator(self, sensor, members, tar):
+        for member in members:
+            file_obj = tar.extractfile(member)
+            if file_obj is not None:
+                df = pd.read_parquet(io.BytesIO(file_obj.read()))
+                for _, row in df.iterrows():
+                    if 'node' in row and str(row['node']) == str(self.node_id):
+                        row_dict = row.to_dict()
+                        row_dict['sensor'] = sensor
+                        yield row_dict
+
+    def next_reading(self, sensor):
+        """
+        Returns the next reading for the given sensor, or None if exhausted.
+        Updates the current reading and time for the sensor.
+        """
+        gen = self.sensor_generators.get(sensor)
+        if gen is None:
+            return None
+        try:
+            next_row = next(gen)
+            self.current_readings[sensor] = next_row
+            # Check if the timestamp field exists in the row before updating current_times
+            timestamp_value = next_row.get(self.timestamp_col)
+            if timestamp_value is not None:
+                self.current_times[sensor] = pd.to_datetime(timestamp_value)
+            else:
+                self.current_times[sensor] = None
+            return next_row
+        except StopIteration:
+            return None
+            
+    def update_all_sensors(self):
+        """
+        Updates all sensors by advancing their generators to the next reading.
+        Updates current_readings and current_times for each sensor.
+        Also updates earliest_current_time to the minimum of current_times.
+        Returns a dict mapping sensor to the new reading (or None if exhausted).
+        """
+        updated_readings = {}
+        new_earliest_current_time = None  # Reset before updating
+        for sensor in self.sensor_generators:
+            if self.current_times.get(sensor) is not None and self.current_times.get(sensor) < (self.earliest_current_time + self.interval):
+                next_row = self.next_reading(sensor)
+                updated_readings[sensor] = next_row
+                # Update current_readings for this sensor
+                self.current_readings[sensor] = next_row
+
+            # Update earliest_current_time as we go
+            current_time = self.current_times.get(sensor)
+            if current_time is not None:
+                if new_earliest_current_time is None or current_time < new_earliest_current_time:
+                    new_earliest_current_time = current_time
+
+        self.earliest_current_time = new_earliest_current_time
+
+        return updated_readings
+
