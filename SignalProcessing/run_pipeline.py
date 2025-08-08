@@ -64,7 +64,7 @@ def run(limit_racks = None):
     # Set up queues for each stage with size limits for backpressure
     # Use multiprocessing.Queue for inter-process communication
     buffer_queue = multiprocessing.Queue(maxsize=bq_max_size)     # NodeManager → ChangeLevelDetector
-    change_queue = multiprocessing.Queue(maxsize=bq_max_size)     # ChangeLevelDetector → StateBuilder
+    change_queue = multiprocessing.Queue(maxsize=bq_max_size*10*1000)     # ChangeLevelDetector → StateBuilder
     state_queue = multiprocessing.Queue(maxsize=bq_max_size)     # StateBuilder → StatePersister
 
 
