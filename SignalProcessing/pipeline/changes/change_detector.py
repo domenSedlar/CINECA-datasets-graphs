@@ -3,7 +3,7 @@ import logging
 from common.logger import Logger
 import psutil
 import os
-
+from river.stats import Quantile
 from common.my_timer import Timer
 from common.memory_utils import log_memory_usage
 from common.logger import Logger
@@ -14,17 +14,17 @@ class ChangeLevelDetector:
     def __init__(self, input_queue, output_queue, delta=0.5, clock=3):  # Increased delta from 0.001 to 0.01
         self.input_queue = input_queue
         self.output_queue = output_queue
-        self.delta = delta
-        self.clock = clock
-        self.adwins = {}
-        self.medians = {}  # Use river's Quantile for median
-        self.queue = {} # for each node, sensor pair, contains a list of the last few readings
-        from river.stats import Quantile
-        self.Quantile = Quantile
+        self.delta = delta # Adwin parameter
+        self.clock = clock # Adwin parameter
+        self.adwins = {} # dictionary, contains an adwin object for each sensor. (Used for change detection)
+        self.medians = {}  # dictionary that keeps track of the median for each sensor
+        self.queue = {} # for each node - sensor pair, contains a list of the last few readings,
+
+        # Bellow are properties used for debugging
         self.filtered_count = 0
         self.total_count = 0
         self.drift_count = 0
-        self.t = Timer()
+        self.t = Timer() 
 
     def _add_to_queue(self, node_id, sensor_id, reading):
         if node_id not in self.queue:
@@ -32,7 +32,7 @@ class ChangeLevelDetector:
         if sensor_id not in self.queue[node_id]:
             self.queue[node_id][sensor_id] = []
         self.queue[node_id][sensor_id].append(reading)
-        while len(self.queue[node_id][sensor_id]) > self.clock/2:
+        while len(self.queue[node_id][sensor_id]) > self.clock/2: # Make sure only the latest couple of values are in the queue
             self.queue[node_id][sensor_id].pop(0)
 
     def _feed_queue2median(self, node, sensor):
@@ -45,7 +45,7 @@ class ChangeLevelDetector:
         # Use river's Quantile for approximate median, now per (node, sensor)
         key = (node, sensor)
         if key not in self.medians:
-            self.medians[key] = self.Quantile(0.5)
+            self.medians[key] = Quantile(0.5)
         self.medians[key].update(num)
 
     def _get_median(self, node, sensor):
@@ -56,8 +56,8 @@ class ChangeLevelDetector:
 
     def _reset_median(self, node, sensor):
         key = (node, sensor)
-        self.medians[key] = self.Quantile(0.5)
-        self._feed_queue2median(node, sensor)
+        self.medians[key] = Quantile(0.5)
+        self._feed_queue2median(node, sensor) # The change detection sometimes misses a couple of values, so we add them back
 
     def process_batch(self, batch):
         """
