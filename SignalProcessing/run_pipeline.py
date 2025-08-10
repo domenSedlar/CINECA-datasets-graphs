@@ -24,6 +24,7 @@ def node_manager_process(buffer_queue, stop_event, limit_nodes, limit_racks, row
     )
     node_manager.iterate_batches(stop_event=stop_event, final_log_frequency=500)
 
+
 def change_detector_process(buffer_queue, change_queue, delta, clock):
     """ChangeDetector process function that can be pickled"""
     change_detector = ChangeLevelDetector(buffer_queue, change_queue, delta=delta, clock=clock)
@@ -34,9 +35,9 @@ def state_builder_process(change_queue, state_queue):
     state_builder = StateBuilder(change_queue, state_queue)
     state_builder.run()
 
-def state_persister_process(state_queue, output_file):
+def state_persister_process(state_queue, output_file, batch_write_size=25):
     """StatePersister process function that can be pickled"""
-    state_persister = StatePersister(state_queue, output_file=output_file)
+    state_persister = StatePersister(state_queue, output_file=output_file, batch_write_size=batch_write_size)
     state_persister.run()
 
 def run(limit_racks = None):
@@ -51,7 +52,7 @@ def run(limit_racks = None):
     rows_in_mem=500
     bq_max_size=2*rows_in_mem
 
-    vars_to_log = ['limit_nodes', 'limit_racks', 'delta', 'clock', 'bq_max_size', 'rows_in_mem']
+    vars_to_log = ['limit_nodes', 'limit_racks', 'delta', 'clock', 'bq_max_size', 'rows_in_mem', 'batch_write_size']
     log_message = ""
     for var in vars_to_log:
         log_message += var + ": " + str(locals()[var]) + ", "
@@ -65,6 +66,7 @@ def run(limit_racks = None):
     buffer_queue = multiprocessing.Queue(maxsize=bq_max_size)     # NodeManager → ChangeLevelDetector
     change_queue = multiprocessing.Queue(maxsize=bq_max_size)     # ChangeLevelDetector → StateBuilder
     state_queue = multiprocessing.Queue(maxsize=bq_max_size)     # StateBuilder → StatePersister
+
 
     output_file = f'./outputs/threaded_pipeline_state_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_rack{limit_racks}.parquet'
 
@@ -128,6 +130,7 @@ def run(limit_racks = None):
 
 def run_wrapper(i):
     return run(limit_racks=int(i))
+
 
 def process_all(num_workers=2):
     print("num of workers: ", num_workers)

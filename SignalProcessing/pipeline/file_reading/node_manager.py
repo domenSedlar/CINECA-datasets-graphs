@@ -3,19 +3,14 @@ import tarfile
 import io
 import pyarrow.parquet as pq
 import pandas as pd
-import logging
 from pipeline.file_reading.node_sensor_manager import NodeSensorManager
 from simple_queue import SimpleQueue as Queue
-import json
 import time
 import copy
-import psutil
-import ctypes
-import gc
-import platform
 from common.memory_utils import log_memory_usage, get_queue_state, force_memory_cleanup
 import datetime
 import pyarrow.parquet as pq
+from random import randint
 
 from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger_real()
@@ -126,7 +121,6 @@ class NodeManager:
             if i % 100 == 0:
                 logger.info(f"intilized {i} nodes")
             # Force memory cleanup after creating each manager
-            force_memory_cleanup()
         
         # Force garbage collection after all managers are created
         force_memory_cleanup()
@@ -139,10 +133,10 @@ class NodeManager:
         nodes = []
         file_paths = []
         earliest_timestamp = datetime.datetime.fromisoformat("2020-03-09 11:45:00+00:00")
-        max_rows = 86650
+        max_rows = 86651
         table = None
 
-        max_file = "15.parquet"
+        max_file = "221.parquet"
         node_expected_rows = {}  # node_id -> expected row count
         node_processed_rows = {}  # node_id -> processed row count
 
@@ -167,7 +161,7 @@ class NodeManager:
                     continue
                 nodes.append(node_id)
                 file_paths.append(os.path.join(self.files_path, folder, file))
-                
+                continue
                 table = pq.read_table(os.path.join(self.files_path, folder, file))
                 t = table.select(['timestamp']).slice(0, 1)['timestamp'].to_pandas().iloc[0]
 
@@ -199,7 +193,7 @@ class NodeManager:
         self.node_managers = {}
         i = 0
         logger.info(len(nodes))
-        logger.info(len(file_paths))
+
         for node_id, file in zip(nodes, file_paths):
             i+=1
             rack_id = file.split("/")[-1].split("\\")[0]
@@ -259,16 +253,19 @@ class NodeManager:
                 if reading is None:
                     to_remove.append(node_id)
                 else:
-                    batch[node_id] = copy.copy(reading)
-                    self.node_processed_rows[node_id] += 1
+                    batch[node_id] = reading
+                    # self.node_processed_rows[node_id] += 1
+
             for node_id in to_remove:
                 active_nodes.remove(node_id)
                 unactive_nodes.add(node_id)
+
             if batch:
                 # logger.debug("pushing row")
                 if self.buffer.full():
                     # logger.info("buffer is full")
                     self.buffer.put(copy.copy(batch))
+                    # logger.info("continuing")
                 else:
                     self.buffer.put(copy.copy(batch))
                 # logger.debug("pushed")
@@ -283,19 +280,21 @@ class NodeManager:
                     logger.info(f"NodeManager: Processed {rows_processed} batches. Last {log_frequency} in {interval:.2f}s, total elapsed {total:.2f}s.")
                     last_log_time = now
 
-                    log_memory_usage(f"NodeManager.iterate_batches batch {batch_count}", buffer=self.buffer, var_name="buffer_queue")
                     logger.debug(get_queue_state({
                         "buffer" : self.buffer
                     }))
+
+                    log_memory_usage(f"NodeManager.run batch {rows_processed}",)
                     # Force memory cleanup periodically
+
                     force_memory_cleanup()
-                    
                     if log_frequency < final_log_frequency:
                         log_frequency *= 10
                 if limit_rows is not None and rows_processed >= limit_rows:
                     break
 
         self.buffer.put(None)
+        
 
 def main():
     import argparse

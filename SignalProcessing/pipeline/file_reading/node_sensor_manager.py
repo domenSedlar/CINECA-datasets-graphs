@@ -4,7 +4,13 @@ import pandas as pd
 from collections import defaultdict
 from datetime import timedelta
 import ctypes
+import pyarrow.parquet as pq
+import pyarrow as pa
+import gc
+import math
+import numpy as np
 
+from common.memory_utils import force_memory_cleanup
 from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
 
@@ -16,7 +22,7 @@ class NodeSensorManager:
         self.timestamp_col = timestamp_col
         self.interval = timedelta(seconds=interval_seconds)
         self.sensor_generator = None
-        self.current_readings = None
+        self.current_readings = {}
         # Only subtract interval if current_time is not None
         if current_time is not None:
             self.current_time = current_time - self.interval
@@ -32,13 +38,7 @@ class NodeSensorManager:
             self._prepare_generators(rows_in_mem, file_path)
 
     def _prepare_generators_from_tar(self, rows_in_mem, temp_dir="D:/temp_parquet_files"):
-        import tarfile
-        import pyarrow.parquet as pq
-        import gc
-        import psutil
-        import os
-        import tempfile
-        
+      
         # Read the specific {node_id}.parquet file using temp files on D: drive
         tar_file_path = f"{self.tar_path}"
         parquet_filename = f"{self.node_id}.parquet"
@@ -90,7 +90,7 @@ class NodeSensorManager:
                     for batch in pq_file.iter_batches(batch_size=batch_size, columns=[self.timestamp_col] + self.sensor_columns):
                         batch_df = batch.to_pandas()
                         logger.debug("fresh batch")
-                        for _, row in batch_df.iterrows():
+                        for _, row in batch_df.itertuples(index=False, name=None):
                             yield row
                         # Force garbage collection after each batch
                         gc.collect()
@@ -128,12 +128,6 @@ class NodeSensorManager:
             # logger.debug(f"Node {self.node_id}: Memory after processing: {mem_after:.2f}MB (delta: {mem_after - mem_before:.2f}MB)")
 
     def _prepare_generators(self, rows_in_mem, par_file):
-        import tarfile
-        import pyarrow.parquet as pq
-        import gc
-        import psutil
-        import os
-        import tempfile
                 
         pq_file = pq.ParquetFile(par_file)
         
@@ -141,38 +135,31 @@ class NodeSensorManager:
         self.sensor_columns = None
         if self.sensor_columns is None:
             all_columns = pq_file.schema.names
-            self.sensor_columns = [col for col in all_columns if col != 'timestamp' and not (col.endswith('_min') or col.endswith('_max') or col.endswith('_std'))]
+            self.sensor_columns = [col for col in all_columns if col != 'timestamp' and not (col.endswith('_min') or col.endswith('_max') or col.endswith('_std') or '__index_level_' in col)]
         
         # Use pyarrow streaming to avoid memory mapping
         def row_generator(pq_file, batch_size=rows_in_mem, logger=logger):
             pq_file  # Make pq_file accessible in this function
-            try:
-                # Read in very small chunks using pyarrow iter_batches
-                for batch in pq_file.iter_batches(batch_size=batch_size, columns=[self.timestamp_col] + self.sensor_columns):
-                    batch_df = batch.to_pandas()
-                    logger.debug("fresh batch")
-                    for _, row in batch_df.iterrows():
-                        yield row
-                    # Force garbage collection after each batch
-                    gc.collect()
-                    del batch_df
-                    # Force C library to release memory back to OS periodically
-                    try:
-                        ctypes.CDLL("libc.so.6").malloc_trim(0)
-                    except Exception as e:
-                        pass  # malloc_trim not available on this system
-            finally:
-                # Clean up temp file immediately after processing
-                try:
-                    del pq_file  # Explicitly delete pyarrow file object
-                    gc.collect()  # Force cleanup
-                    # Force C library to release memory back to OS
-                    try:
-                        ctypes.CDLL("libc.so.6").malloc_trim(0)
-                    except Exception as e:
-                        pass  # malloc_trim not available on this system                    
-                except:
-                    pass
+            # Read in very small chunks using pyarrow iter_batches
+            for batch in pq_file.iter_batches(batch_size=batch_size, columns=[self.timestamp_col] + self.sensor_columns):
+                batch_df = batch.to_pandas(split_blocks=True, self_destruct=True)
+
+                # Step 1: For the first row, fill missing with last known values from self.current_readings
+                for col in self.sensor_columns:
+                    if pd.isna(batch_df.at[0, col]):
+                        batch_df.at[0, col] = self.current_readings.get(col, np.nan)
+
+                # Step 2: Forward fill missing values in sensor columns
+                batch_df[self.sensor_columns] = batch_df[self.sensor_columns].ffill()
+
+                logger.debug("fresh batch")
+                columns = batch_df.columns
+                for row in batch_df.itertuples(index=False, name=None):
+                    yield dict(zip(columns, row))
+                
+                del batch, batch_df
+                force_memory_cleanup()
+
         
         self.sensor_generator = row_generator(pq_file)
         
@@ -185,8 +172,7 @@ class NodeSensorManager:
 
 
     def _sanitize_sensor_values(self, row): # if the value is None, use the last valid value from current_readings when it exists
-        import math
-        import pandas as pd
+
         sanitized = {}
         for k in self.sensor_columns:
             v = row.get(k, None)
@@ -201,6 +187,8 @@ class NodeSensorManager:
         
         return sanitized
 
+
+
     def next_readings(self, allowed_offset_seconds=0):
         """
         Advance to the next sensor reading if it is within the allowed offset.
@@ -208,7 +196,6 @@ class NodeSensorManager:
         return a dict with all sensor keys set to None, do not update current_readings, but advance current_time by interval.
         The next call will check the same buffered row until the time catches up.
         """
-        import pandas as pd
         if not hasattr(self, '_buffered_row'):
             self._buffered_row = None
         if not hasattr(self, '_first_reading_yielded'):
@@ -243,6 +230,7 @@ class NodeSensorManager:
                 self.current_time = expected_next_time
                 logger.debug("buffered row, and returned")
                 return { # for now we return None, as we have no data for this interval
+                    'node': self.node_id,
                     'timestamp': to_json_serializable_timestamp(self.current_time),
                     'rack_id': self.rack_id,
                     'sensor_data': sensor_data
@@ -250,19 +238,29 @@ class NodeSensorManager:
             else:
                 self._buffered_row = None
                 self.current_time = next_time
-                logger.debug("sanitizing")
-                self.current_readings = self._sanitize_sensor_values(next_row)
+                self.current_readings = next_row
                 self.processed_rows += 1
                 logger.debug("returning")
+
+                sensor_data = { k: next_row[k] for k in self.sensor_columns}
+
                 return {
+                    'node': self.node_id,
                     'timestamp': to_json_serializable_timestamp(self.current_time),
                     'rack_id': self.rack_id,
-                    'sensor_data': self.current_readings.copy() if self.current_readings else None # TODO I dont think we need to copy current readings here
+                    'sensor_data': sensor_data
                 }
         except StopIteration:
             self.current_time = None
             self.current_readings = None
             return None
+        
+    def readings_generator(self):
+        while True:
+            reading = self.next_readings()
+            if reading is None:
+                break
+            yield reading
 
     def get_processed_row_count(self):
         return self.processed_rows
