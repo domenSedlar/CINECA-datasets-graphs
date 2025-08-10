@@ -10,15 +10,15 @@ import os
 import datetime
 import sys
 
-from common.logger import Logger
-logger = Logger(name=__name__.split('.')[-1], log_dir='logs', rack=sys.argv[1]).get_logger_real()
+from concurrent.futures import ProcessPoolExecutor
 
-def node_manager_process(buffer_queue, stop_event, limit_nodes, limit_racks, temp_dir, rows_in_mem):
+from common.logger import Logger
+
+def node_manager_process(buffer_queue, stop_event, limit_nodes, limit_racks, rows_in_mem):
     """NodeManager process function that can be pickled"""
     node_manager = NodeManager(
         buffer=buffer_queue, 
         limit_nodes=limit_nodes, 
-        temp_dir=temp_dir, 
         rows_in_mem=rows_in_mem, 
         limit_racks=limit_racks
     )
@@ -39,14 +39,17 @@ def state_persister_process(state_queue, output_file):
     state_persister = StatePersister(state_queue, output_file=output_file)
     state_persister.run()
 
-def run():
+def run(limit_racks = None):
+    logger = Logger(name=__name__.split('.')[-1], log_dir='logs', rack=limit_racks).get_logger_real()
+
+    if limit_racks is None:
+        limit_racks = int(sys.argv[1])
+
     limit_nodes = None
-    limit_racks = int(sys.argv[1])
     delta=0.5
     clock=3
-    rows_in_mem=1000
+    rows_in_mem=500
     bq_max_size=2*rows_in_mem
-    temp_dir_loc="E:/temp_parquet_files"
 
     vars_to_log = ['limit_nodes', 'limit_racks', 'delta', 'clock', 'bq_max_size', 'rows_in_mem']
     log_message = ""
@@ -76,7 +79,7 @@ def run():
     processes = [
         multiprocessing.Process(
             target=node_manager_process, 
-            args=(buffer_queue, stop_event, limit_nodes, limit_racks, temp_dir_loc, rows_in_mem),
+            args=(buffer_queue, stop_event, limit_nodes, limit_racks, rows_in_mem),
             name="NodeManagerProcess"
         ),
         multiprocessing.Process(
@@ -120,6 +123,28 @@ def run():
         for p in processes:
             p.join(timeout=5)
         logger.info("Pipeline killed by user.")
+    
+    return None
+
+def run_wrapper(i):
+    return run(limit_racks=int(i))
+
+def process_all(num_workers=2):
+    print("num of workers: ", num_workers)
+    print("starting...")
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        executor.map(run_wrapper, range(50))
+
+    print("All tasks completed.")
+
+def process_rack(rack_id=None):
+    run(limit_racks=rack_id)
 
 if __name__ == "__main__":
-    run()
+    num_workers = 1 # each worker starts 4 processes, so if you have 32 cores, seting this to 5 will result in the use of 25 cores
+    # each worker processes one rack at a time 
+    
+    process_rack(rack_id=0) # change rack id to the number of the rack you wish to process
+
+    # Use the following function instead, if running on a system with a bunch of cores and ram
+    # process_all(num_workers) # will process all racks

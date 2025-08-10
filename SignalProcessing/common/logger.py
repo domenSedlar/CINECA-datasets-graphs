@@ -1,15 +1,16 @@
 import logging
 import os
+from multiprocessing import current_process
 
 class Logger:
     def __init__(self, name=__name__, log_file='pipeline.log', log_dir='logs', rack='None'):
         self.logger_fake = logging.getLogger("idk")
-
+        proc_name = current_process().name
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.DEBUG)
 
         if not self.logger.handlers:
-            formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
+            formatter = logging.Formatter('[%(asctime)s]  %(processName)s - %(threadName)s - %(name)s - %(levelname)s: %(message)s')
 
             # Console handler
             ch = logging.StreamHandler()
@@ -22,7 +23,7 @@ class Logger:
             self.log_dir = log_dir
 
             current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
-            log_filename = f"{os.path.splitext(os.path.basename(name if name != '__main__' else 'main'))[0]}_{rack}.log"
+            log_filename = f"{os.path.splitext(os.path.basename(name if name != '__main__' else 'main'))[0]}_{proc_name}.log"
             log_path = os.path.join(os.getcwd(), self.log_dir, current_time)
             os.makedirs(log_path, exist_ok=True)
             log_file = os.path.join(log_path, log_filename)
