@@ -14,12 +14,14 @@ from pipeline.persist import GraphStorage
 import argparse
 
 def main():
+    state_file='StateFiles/state.parquet'
+
     # Create queues
     reader_output_queue = Queue()
     builder_output_queue = Queue()
 
     # Create objects
-    reader = StateFileReader(buffer=reader_output_queue)
+    reader = StateFileReader(buffer=reader_output_queue, state_file=state_file)
     builder = GraphBuilder(buffer=reader_output_queue, output_queue=None, graph_type=GraphTypes.NodeTree)
     import datetime
     unique_run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
