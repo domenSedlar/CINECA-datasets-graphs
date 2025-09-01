@@ -21,7 +21,7 @@ def default_serializer(obj):
     return str(obj)
 
 class StatePersister:
-    def __init__(self, input_queue, output_file='latest_state.json', batch_write_size=25):
+    def __init__(self, input_queue, output_file='latest_state.json', batch_write_size=50):
         self.input_queue = input_queue
         self.output_file = output_file
         self.batch_write_size = batch_write_size
@@ -202,7 +202,6 @@ class StatePersister:
     pa.field("ps1_output_volta_avg", pa.float64(), nullable=True),
     pa.field("total_power_avg", pa.float64(), nullable=True),
     pa.field("value", pa.float64(), nullable=True),
-    pa.field("__index_level_0__", pa.float64(), nullable=True),
 ])
         columns_for_other = [
         "ambient_avg", "ambient_std", "ambient_min", "ambient_max",
