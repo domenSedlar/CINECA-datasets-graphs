@@ -99,7 +99,7 @@ class GraphBuilder:
 
         return graph
     
-    def build_graph(self, graph_type=None):
+    def build_graph(self, graph_type=None, stop_event=None):
         """Build graphs from the state data received in the buffer"""
         state = self.buffer.get()
 
@@ -131,6 +131,9 @@ class GraphBuilder:
         i = 0
 
         while True:
+            if stop_event and stop_event.is_set():
+                print("graphBuilder detected stop_event set, breaking loop.")
+                break
             state = self.buffer.get()
             if state is None:
                 print("No more state data to process. Exiting.")
@@ -138,7 +141,7 @@ class GraphBuilder:
                     self.output_queue.put(None)
                 break
             self._update_graph(state)
-            # print(state[2]['timestamp'], state[2]['ambient_avg'])
+            print(state[2]['timestamp'], state[2]['ambient_avg'])
 
             # Put the graph in the output queue
             if i < 4:

@@ -11,7 +11,7 @@ class StateFileReader:
         self.state_file = state_file
         self.buffer = buffer
 
-    def read_and_emit(self):
+    def read_and_emit(self, stop_event=None):
         """
         Reads the state file line by line and puts each line into the buffer.
         Each line contains a JSON object with node data.
@@ -23,6 +23,9 @@ class StateFileReader:
         current_t = None
 
         for batch in pq_file.iter_batches(batch_size=100):
+            if stop_event and stop_event.is_set():
+                print("reader: detected stop_event set, breaking loop.")
+                break
             # Convert to Python objects column-wise without Pandas
             timestamps = batch.column("timestamp")
             nodes = batch.column("node")
