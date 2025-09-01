@@ -44,7 +44,7 @@ class StateFileReader:
                     state.clear()
                     current_t = ts
 
-                state[node_values[i]] = all_rows[i]
+                state[int(node_values[i])] = all_rows[i] # TODO node_values might not be int
                     
         self.buffer.put(state)
         self.buffer.put(None)

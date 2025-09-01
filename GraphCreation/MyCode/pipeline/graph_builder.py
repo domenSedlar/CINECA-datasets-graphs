@@ -34,12 +34,14 @@ class GraphBuilder:
                     self.graph.nodes[sensor_node_id]["value"] = value
         elif self.graph_type == GraphTypes.NodeTree:
             for node_id, node_data in state.items():
+                val = node_data.pop("value")
                 for sensor, value in node_data.items():
 
                     if sensor == "rack_id" or sensor.lower()=="timestamp"or sensor == "node":
                         continue
                     sensor_node_id = self._get_sensor_id(node_id, sensor)
                     self.graphs[node_id].nodes[sensor_node_id]["value"] = value
+                    self.graphs[node_id].graph["value"] = val
         else:
             print("??, unknown graph type in _update_graph()")
 
@@ -125,7 +127,7 @@ class GraphBuilder:
         else:
             raise ValueError(f"Unknown graph_type: {graph_type}")
 
-        visualize(self.graph)
+        # visualize(self.graph)
         i = 0
 
         while True:
@@ -136,10 +138,11 @@ class GraphBuilder:
                     self.output_queue.put(None)
                 break
             self._update_graph(state)
-            print(state[2]['timestamp'], state[2]['ambient_avg'])
+            # print(state[2]['timestamp'], state[2]['ambient_avg'])
+
             # Put the graph in the output queue
             if i < 4:
-                visualize(self.graph)
+                #visualize(self.graph)
                 i += 1
             if self.output_queue is not None:
                 self.output_queue.put(self.graph.copy())
@@ -192,6 +195,8 @@ class GraphBuilder:
 
         graph.add_node(node_id, position=pos)
 
+        val = state.pop("value")
+
         for sensor_name, value in state.items():
             if sensor_name == "rack_id" or sensor_name.lower()=="timestamp"or sensor_name =="node":
                 continue
@@ -207,6 +212,8 @@ class GraphBuilder:
                 value=value
             )
             graph.add_edge(node_id, self._get_sensor_id(node_id=node_id, sensor_name=sensor_name))
+
+        graph.graph["value"] = val
 
         self.graphs[node_id] = graph
 
