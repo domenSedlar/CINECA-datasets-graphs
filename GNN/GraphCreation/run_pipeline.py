@@ -14,7 +14,7 @@ from pipeline.persist import GraphStorage
 
 import argparse
 
-def main():
+def run():
     state_file='StateFiles/state.parquet'
 
     # Create queues
@@ -54,4 +54,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    run()

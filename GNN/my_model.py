@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import GNN, GraphConv
 from torch_geometric.nn import global_mean_pool
 from torch_geometric.loader import DataLoader
+from GraphCreation.pipeline.nx_to_torch import Nx2T1Conv
 
 
 class GC(torch.nn.Module):
@@ -11,13 +12,12 @@ class GC(torch.nn.Module):
         super(GNN, self).__init__()
         torch.manual_seed(12345)
 
-        num_node_features = 2 # (sensor name, value)
-        num_classes = 4 # 0 ~ ok, 1 ~ down, 2 ~ unreachable, 4 ~ unknown
+        self.converter = Nx2T1Conv()
 
-        self.conv1 = GraphConv(num_node_features, hidden_channels)
+        self.conv1 = GraphConv(self.converter.num_node_features, hidden_channels)
         self.conv2 = GraphConv(hidden_channels, hidden_channels)
         self.conv3 = GraphConv(hidden_channels, hidden_channels)
-        self.lin = Linear(hidden_channels, num_classes)
+        self.lin = Linear(hidden_channels, self.converter.num_classes)
 
     def forward(self, x, edge_index, batch):
         # 1. Obtain node embeddings 
@@ -40,6 +40,8 @@ class GC(torch.nn.Module):
 class MyModel:
     def __init__(self, buffer, hidden_channels=64, train_on=50):
         self.model = GC(hidden_channels)
+        self.conv = self.model.converter
+        self.buffer = buffer
         self.t = train_on
         self.train_dataset = []
         self.test_dataset = []
@@ -64,8 +66,8 @@ class MyModel:
             if val is None:
                 self.recieving = False
                 break
-
-            self.train_dataset.append(self.buffer.get())
+            val = self.conv.conv(val)
+            self.train_dataset.append(val)
             self._train_on(val)
 
         if train_loader is None:
@@ -89,6 +91,8 @@ class MyModel:
                 if val is None:
                     self.recieving = False
                     break
+                
+                val = self.conv.conv(val)
                 correct += self._test_ex(val)
                 self.test_dataset.append(val)
         else:    
@@ -98,14 +102,13 @@ class MyModel:
         return correct / len(loader.dataset)
 
     def train(self):
-        # Training loop
         self._train()
-        train_loader = DataLoader(self.train_dataset, batch_size=64, shuffle=True)
+        train_loader = DataLoader(self.train_dataset, batch_size=64, shuffle=True) # TODO what should batch size be
         train_acc = self.test(train_loader)
         test_acc = self.test()
         test_loader = DataLoader(self.test_dataset, batch_size=64, shuffle=False)
 
-        for epoch in range(1, 171):
+        for epoch in range(1, 171): # TODO how many times should this run
             self._train()
             train_acc = self.test(train_loader)
             test_acc = self.test(test_loader)
