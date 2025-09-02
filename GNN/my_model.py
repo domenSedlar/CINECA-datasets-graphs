@@ -91,7 +91,7 @@ class MyModel:
                 if val is None:
                     self.recieving = False
                     break
-                
+
                 val = self.conv.conv(val)
                 correct += self._test_ex(val)
                 self.test_dataset.append(val)
@@ -101,7 +101,7 @@ class MyModel:
         
         return correct / len(loader.dataset)
 
-    def train(self):
+    def train(self, stop_event=None):
         self._train()
         train_loader = DataLoader(self.train_dataset, batch_size=64, shuffle=True) # TODO what should batch size be
         train_acc = self.test(train_loader)
@@ -109,6 +109,9 @@ class MyModel:
         test_loader = DataLoader(self.test_dataset, batch_size=64, shuffle=False)
 
         for epoch in range(1, 171): # TODO how many times should this run
+            if stop_event and stop_event.is_set():
+                print("MyModel detected stop_event set, breaking loop.")
+                break
             self._train()
             train_acc = self.test(train_loader)
             test_acc = self.test(test_loader)
