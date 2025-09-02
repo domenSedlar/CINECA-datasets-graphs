@@ -9,10 +9,10 @@ def main():
     q_limit = 100 # TODO do we need this?
     reader_output_queue = Queue(q_limit) 
     builder_output_queue = Queue(q_limit)
-    state_file='StateFiles/state.parquet'
+    state_file='GraphCreation/StateFiles/state.parquet'
     stop_event = threading.Event()
 
-    model = MyModel(builder_output_queue) # TODO set optional parameters
+    model = MyModel(builder_output_queue, train_on=5) # TODO set optional parameters
 
     kwargs_graph_creation = {
         "reader_output_queue" : reader_output_queue,

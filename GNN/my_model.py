@@ -1,13 +1,13 @@
 import torch
 from torch.nn import Linear
 import torch.nn.functional as F
-from torch_geometric.nn import GNN, GraphConv
+from torch_geometric.nn import GraphConv
 from torch_geometric.nn import global_mean_pool
 from torch_geometric.loader import DataLoader
 from GraphCreation.pipeline.nx_to_torch import Nx2T1Conv
 
 
-class GC(torch.nn.Module):
+class GNN(torch.nn.Module):
     def __init__(self, hidden_channels):
         super(GNN, self).__init__()
         torch.manual_seed(12345)
@@ -39,7 +39,7 @@ class GC(torch.nn.Module):
 
 class MyModel:
     def __init__(self, buffer, hidden_channels=64, train_on=50):
-        self.model = GC(hidden_channels)
+        self.model = GNN(hidden_channels)
         self.conv = self.model.converter
         self.buffer = buffer
         self.t = train_on
@@ -57,11 +57,19 @@ class MyModel:
         self.optimizer.step()
         self.optimizer.zero_grad()
 
+    def _print_graph_data(graph):
+        print(f'Number of nodes: {graph.num_nodes}')
+        print(f'Number of edges: {graph.num_edges}')
+        print(f'Average node degree: {graph.num_edges / graph.num_nodes:.2f}')
+        print(f'Has isolated nodes: {graph.has_isolated_nodes()}')
+        print(f'Has self-loops: {graph.has_self_loops()}')
+        print(f'Is undirected: {graph.is_undirected()}')
+
     # Training function
     def _train(self, train_loader=None, stop_event=None):
         self.model.train()
 
-        while self.recieving and self.train_dataset < self.t:
+        while self.recieving and len(self.train_dataset) < self.t:
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in _train, breaking loop.")
                 break
@@ -70,6 +78,7 @@ class MyModel:
                 self.recieving = False
                 break
             val = self.conv.conv(val)
+            MyModel._print_graph_data(val)
             self.train_dataset.append(val)
             self._train_on(val)
 
@@ -88,10 +97,10 @@ class MyModel:
         return int((pred == data.y).sum())
 
     # Testing function
-    def test(self, loader=None, stop_event=None):
+    def test(self, test_loader=None, stop_event=None):
         self.model.eval()
         correct = 0
-        if loader is None:
+        if test_loader is None:
             while self.recieving:
                 if stop_event and stop_event.is_set():
                     print("MyModel detected stop_event set in _test, breaking loop.")
@@ -105,13 +114,13 @@ class MyModel:
                 correct += self._test_ex(val)
                 self.test_dataset.append(val)
         else:    
-            for data in loader:
+            for data in test_loader:
                 if stop_event and stop_event.is_set():
                     print("MyModel detected stop_event set in _test, breaking loop.")
                     break
                 correct += self._test_ex(data)
         
-        return correct / len(loader.dataset)
+        return correct / len(test_loader.dataset)
 
     def train(self, stop_event=None):
         self._train(stop_event=stop_event) 

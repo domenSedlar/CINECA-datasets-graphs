@@ -141,14 +141,18 @@ class GraphBuilder:
                     self.output_queue.put(None)
                 break
             self._update_graph(state)
-            print(state[2]['timestamp'], state[2]['ambient_avg'])
+            # print(state[2]['timestamp'], state[2]['ambient_avg'])
 
             # Put the graph in the output queue
             if i < 4:
                 #visualize(self.graph)
                 i += 1
             if self.output_queue is not None:
-                self.output_queue.put(self.graph.copy())
+                if self.graph is not None:
+                    self.output_queue.put(self.graph.copy())
+                else:
+                    for g in self.graphs:
+                        self.output_queue.put(g.copy())
 
     def build_graph_nn_s(self, state): # nn_s: node_sensor, all nodes connected to each other
         graph = nx.Graph()

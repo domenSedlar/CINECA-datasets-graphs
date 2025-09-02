@@ -7,16 +7,16 @@ import datetime
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'pipeline'))
 
-from pipeline.read_and_emit import StateFileReader
-from pipeline.graph_builder import GraphBuilder, GraphTypes
-from pipeline.persist import GraphStorage
+from .pipeline.read_and_emit import StateFileReader
+from .pipeline.graph_builder import GraphBuilder, GraphTypes
+from .pipeline.persist import GraphStorage
 
 import argparse
 
 def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', stop_event = threading.Event()):
     # Create objects
     reader = StateFileReader(buffer=reader_output_queue, state_file=state_file)
-    builder = GraphBuilder(buffer=reader_output_queue, output_queue=None, graph_type=GraphTypes.NodeTree)
+    builder = GraphBuilder(buffer=reader_output_queue, output_queue=builder_output_queue, graph_type=GraphTypes.NodeTree)
     unique_run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     unique_filename = f'all_graphs_{unique_run_id}.pkl'
     # storage = GraphStorage(input_queue=builder_output_queue, filename=unique_filename)
