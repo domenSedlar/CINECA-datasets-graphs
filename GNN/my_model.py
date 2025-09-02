@@ -58,10 +58,13 @@ class MyModel:
         self.optimizer.zero_grad()
 
     # Training function
-    def _train(self, train_loader=None):
+    def _train(self, train_loader=None, stop_event=None):
         self.model.train()
 
         while self.recieving and self.train_dataset < self.t:
+            if stop_event and stop_event.is_set():
+                print("MyModel detected stop_event set in _train, breaking loop.")
+                break
             val = self.buffer.get()
             if val is None:
                 self.recieving = False
@@ -74,6 +77,9 @@ class MyModel:
             return
 
         for data in train_loader:
+            if stop_event and stop_event.is_set():
+                print("MyModel detected stop_event set in _train, breaking loop.")
+                break
             self._train_on(data)
 
     def _test_ex(self, data):
@@ -82,11 +88,14 @@ class MyModel:
         return int((pred == data.y).sum())
 
     # Testing function
-    def test(self, loader=None):
+    def test(self, loader=None, stop_event=None):
         self.model.eval()
         correct = 0
         if loader is None:
             while self.recieving:
+                if stop_event and stop_event.is_set():
+                    print("MyModel detected stop_event set in _test, breaking loop.")
+                    break
                 val = self.buffer.get()
                 if val is None:
                     self.recieving = False
@@ -97,22 +106,25 @@ class MyModel:
                 self.test_dataset.append(val)
         else:    
             for data in loader:
+                if stop_event and stop_event.is_set():
+                    print("MyModel detected stop_event set in _test, breaking loop.")
+                    break
                 correct += self._test_ex(data)
         
         return correct / len(loader.dataset)
 
     def train(self, stop_event=None):
-        self._train()
+        self._train(stop_event=stop_event) 
         train_loader = DataLoader(self.train_dataset, batch_size=64, shuffle=True) # TODO what should batch size be
-        train_acc = self.test(train_loader)
-        test_acc = self.test()
+        train_acc = self.test(test_loader=train_loader, stop_event=stop_event)
+        test_acc = self.test(stop_event=stop_event)
         test_loader = DataLoader(self.test_dataset, batch_size=64, shuffle=False)
 
         for epoch in range(1, 171): # TODO how many times should this run
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set, breaking loop.")
                 break
-            self._train()
-            train_acc = self.test(train_loader)
-            test_acc = self.test(test_loader)
+            self._train(train_loader=train_loader, stop_event=stop_event)
+            train_acc = self.test(test_loader=train_loader, stop_event=stop_event)
+            test_acc = self.test(test_loader=test_loader, stop_event=stop_event)
             print(f'Epoch: {epoch:03d}, Train Acc: {train_acc:.4f}, Test Acc: {test_acc:.4f}')

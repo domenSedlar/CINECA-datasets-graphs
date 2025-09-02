@@ -6,8 +6,9 @@ from GraphCreation import run_pipeline
 from my_model import MyModel
 
 def main():
-    reader_output_queue = Queue()
-    builder_output_queue = Queue()
+    q_limit = 100 # TODO do we need this?
+    reader_output_queue = Queue(q_limit) 
+    builder_output_queue = Queue(q_limit)
     state_file='StateFiles/state.parquet'
     stop_event = threading.Event()
 
