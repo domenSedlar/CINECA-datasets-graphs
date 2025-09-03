@@ -138,7 +138,12 @@ class ChangeLevelDetector:
                     'rack_id': rack_id
                 })
 
-            self.output_queue.put("BATCH_END")
+            if self.output_queue.full():
+                logger.warning("output_queue is full before adding 'BATCH_END'")
+                self.output_queue.put("BATCH_END")
+                logger.info("continuing")
+            else:
+                self.output_queue.put("BATCH_END")
 
         self.t2.end()
         
@@ -148,7 +153,7 @@ class ChangeLevelDetector:
         else:
             self._batch_count = 1
             
-        if self._batch_count % 50 == 0:
+        if self._batch_count % 1 == 0:
             filter_rate = (self.drift_count / self.total_count * 100) if self.total_count > 0 else 0
             logger.info(f"[filtering] {self.drift_count}/{self.total_count} ({filter_rate:.1f}% passed through)")
             logger.info(f"[time] {self.t.get_avg()}s processing per one reading")

@@ -1,5 +1,6 @@
 import copy
 
+from common.my_timer import Timer
 from common.memory_utils import log_memory_usage, force_memory_cleanup
 from common.logger import Logger
 logger = Logger(name=__name__.split('.')[-1], log_dir='logs').get_logger()
