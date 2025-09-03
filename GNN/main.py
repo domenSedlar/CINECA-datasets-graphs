@@ -2,8 +2,20 @@ from queue import Queue
 import time
 import threading
 
+import cProfile
+
 from GraphCreation import run_pipeline
 from my_model import MyModel
+
+def profile_thread(target, *args, **kwargs):
+    def wrapped(*args, **kwargs):
+        profiler = cProfile.Profile()
+        profiler.enable()
+        result = target(*args, **kwargs)
+        profiler.disable()
+        profiler.dump_stats(f"{threading.current_thread().name}.prof")        
+        return result
+    return wrapped
 
 def main():
     q_limit = 100 # TODO do we need this?
@@ -27,7 +39,7 @@ def main():
         # Create threads
     threads = [
         threading.Thread(target=run_pipeline.run, name="GraphCreatorThread", kwargs=kwargs_graph_creation),
-        threading.Thread(target=model.train, name="GNNthread", kwargs={"stop_event": stop_event}),
+        threading.Thread(target=profile_thread(model.train), name="GNNthread", kwargs={"stop_event": stop_event}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]
 
