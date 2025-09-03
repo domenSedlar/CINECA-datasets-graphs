@@ -122,7 +122,7 @@ class GraphBuilder:
             for node_id, s in state.items():
                 nd = node_id
                 break
-            self.graph = self.graphs[nd]
+            # self.graph = self.graphs[nd]
             visualize = lambda g: self.visualize_node_tree_graph(g, title="Node Clique Graph")
         else:
             raise ValueError(f"Unknown graph_type: {graph_type}")
@@ -151,7 +151,8 @@ class GraphBuilder:
                 if self.graph is not None:
                     self.output_queue.put(self.graph.copy())
                 else:
-                    for g in self.graphs:
+                    for g in self.graphs.values():
+                        # print("g value:", g.graph["value"])
                         self.output_queue.put(g.copy())
 
     def build_graph_nn_s(self, state): # nn_s: node_sensor, all nodes connected to each other

@@ -13,17 +13,17 @@ from .pipeline.persist import GraphStorage
 
 import argparse
 
-def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', stop_event = threading.Event(), num_limit=None, nodes = None):
+def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', stop_event = threading.Event(), num_limit=None, nodes = None, graph_type=GraphTypes.NodeTree, skip_None=False):
     # Create objects
     reader = StateFileReader(buffer=reader_output_queue, state_file=state_file)
-    builder = GraphBuilder(buffer=reader_output_queue, output_queue=builder_output_queue, graph_type=GraphTypes.NodeTree)
+    builder = GraphBuilder(buffer=reader_output_queue, output_queue=builder_output_queue, graph_type=graph_type)
     unique_run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     unique_filename = f'all_graphs_{unique_run_id}.pkl'
     # storage = GraphStorage(input_queue=builder_output_queue, filename=unique_filename)
 
     # Create threads
     threads = [
-        threading.Thread(target=reader.read_and_emit, name="StateFileReaderThread", kwargs={"stop_event": stop_event, "num_limit":num_limit, "nodes":nodes}),
+        threading.Thread(target=reader.read_and_emit, name="StateFileReaderThread", kwargs={"stop_event": stop_event, "num_limit":num_limit, "lim_nodes":nodes, "skip_None":skip_None}),
         threading.Thread(target=builder.build_graph, name="GraphBuilderThread", kwargs={"stop_event": stop_event}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]

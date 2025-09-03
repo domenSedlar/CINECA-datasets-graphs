@@ -11,7 +11,7 @@ class StateFileReader:
         self.state_file = state_file
         self.buffer = buffer
 
-    def read_and_emit(self, stop_event=None, num_limit=None, nodes=None):
+    def read_and_emit(self, stop_event=None, num_limit=None, lim_nodes=None, skip_None=False):
         """
         Reads the state file line by line and puts each line into the buffer.
         Each line contains a JSON object with node data.
@@ -31,6 +31,7 @@ class StateFileReader:
             # Convert to Python objects column-wise without Pandas
             timestamps = batch.column("timestamp")
             nodes = batch.column("node")
+            vals = batch.column("value")
             
             # Convert once for the entire batch to Python scalars
             # Avoid per-row overhead
@@ -42,8 +43,12 @@ class StateFileReader:
             all_rows = batch.to_pylist()
 
             for i, ts in enumerate(ts_values):
-                if nodes is not None and not (i in nodes): # so we can limit to certain nodes
+                
+                if nodes is not None and not (int(nodes[i]) in lim_nodes): # so we can limit to certain nodes
                     continue
+                if skip_None and not (vals[i].is_valid):
+                    continue
+                # print(vals[i])
                 if current_t is None:
                     current_t = ts
                 elif ts != current_t:
@@ -54,7 +59,7 @@ class StateFileReader:
 
                 state[int(node_values[i])] = all_rows[i] # TODO node_values might not be int
             
-            if num_limit is not None and count < num_limit:
+            if num_limit is not None and count >= num_limit:
                 print("reached row limit in persist")
                 break
 

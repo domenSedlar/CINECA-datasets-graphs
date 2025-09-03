@@ -12,21 +12,22 @@ def main():
     state_file='GraphCreation/StateFiles/state.parquet'
     stop_event = threading.Event()
 
-    model = MyModel(builder_output_queue, train_on=50, repeat=5) # TODO set optional parameters
+    model = MyModel(builder_output_queue, train_on=4000, repeat=5) # TODO set optional parameters
 
     kwargs_graph_creation = {
         "reader_output_queue" : reader_output_queue,
         "builder_output_queue" : builder_output_queue,
         "state_file" : state_file,
         "stop_event" : stop_event,
-        "num_limit" : 200,
-        "nodes" : {2}
+        "num_limit" : 6000,
+        "nodes" : {2},
+        "skip_None": True
     }
 
         # Create threads
     threads = [
-        threading.Thread(target=run_pipeline.run, name="StateFileReaderThread", kwargs=kwargs_graph_creation),
-        threading.Thread(target=model.train, name="GraphBuilderThread", kwargs={"stop_event": stop_event}),
+        threading.Thread(target=run_pipeline.run, name="GraphCreatorThread", kwargs=kwargs_graph_creation),
+        threading.Thread(target=model.train, name="GNNthread", kwargs={"stop_event": stop_event}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]
 

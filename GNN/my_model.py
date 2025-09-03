@@ -73,13 +73,13 @@ class MyModel:
         while self.recieving and len(self.train_dataset) < self.t:
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in _train, breaking loop.")
-                break
+                return
             val = self.buffer.get()
             if val is None:
+                print("val is none in _train")
                 self.recieving = False
                 break
             val = self.conv.conv(val)
-            MyModel._print_graph_data(val)
             self.train_dataset.append(val)
             self._train_on(val)
 
@@ -95,13 +95,16 @@ class MyModel:
     def _test_ex(self, data):
         out = self.model(data.x, data.edge_index, data.batch)
         pred = out.argmax(dim=1)
+        # print("_test_ex", pred, data.y)
         return int((pred == data.y).sum())
 
     # Testing function
     def test(self, test_loader=None, stop_event=None):
         self.model.eval()
         correct = 0
+        c = 0
         if test_loader is None:
+            print("loader is None")
             while self.recieving:
                 if stop_event and stop_event.is_set():
                     print("MyModel detected stop_event set in _test, breaking loop.")
@@ -109,19 +112,24 @@ class MyModel:
                 val = self.buffer.get()
                 if val is None:
                     self.recieving = False
+                    print("val is None")
                     break
 
                 val = self.conv.conv(val)
                 correct += self._test_ex(val)
+                c += 1
                 self.test_dataset.append(val)
-        else:    
+        else:
+            c = len(test_loader.dataset)
             for data in test_loader:
                 if stop_event and stop_event.is_set():
                     print("MyModel detected stop_event set in _test, breaking loop.")
                     break
                 correct += self._test_ex(data)
-        
-        return correct / len(test_loader.dataset) # TODO what if test_loader is None
+        print(correct, c)
+        if c == 0:
+            return -1
+        return correct / c
 
     def train(self, stop_event=None):
         self._train(stop_event=stop_event) 
