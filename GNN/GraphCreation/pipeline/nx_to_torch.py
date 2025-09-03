@@ -94,7 +94,7 @@ class Nx2T1Conv2: # this one also keeps track of node type
             node_feat = torch.cat([torch.tensor([node_value], dtype=torch.float32), type_onehot], dim=0)
 
 
-            nx_graph.nodes[node]["x"] = torch.tensor([float(node_value)])
+            nx_graph.nodes[node]["x"] = node_feat
             # print(nx_graph.nodes[node])
 
         data = from_networkx(nx_graph)

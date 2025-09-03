@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import GraphConv
 from torch_geometric.nn import global_mean_pool
 from torch_geometric.loader import DataLoader
-from GraphCreation.pipeline.nx_to_torch import Nx2T1Conv
+from GraphCreation.pipeline.nx_to_torch import Nx2T1Conv2
 
 
 class GNN(torch.nn.Module):
@@ -12,7 +12,7 @@ class GNN(torch.nn.Module):
         super(GNN, self).__init__()
         torch.manual_seed(12345)
 
-        self.converter = Nx2T1Conv()
+        self.converter = Nx2T1Conv2()
 
         self.conv1 = GraphConv(self.converter.num_node_features, hidden_channels)
         self.conv2 = GraphConv(hidden_channels, hidden_channels)
