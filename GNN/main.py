@@ -7,19 +7,19 @@ from my_model import MyModel
 
 def main():
     q_limit = 100 # TODO do we need this?
-    reader_output_queue = Queue(q_limit) 
-    builder_output_queue = Queue(q_limit)
+    reader_output_queue = Queue() 
+    builder_output_queue = Queue()
     state_file='GraphCreation/StateFiles/state.parquet'
     stop_event = threading.Event()
 
-    model = MyModel(builder_output_queue, train_on=100, repeat=5) # TODO set optional parameters
+    model = MyModel(builder_output_queue, train_on=6000, repeat=10) # TODO set optional parameters
 
     kwargs_graph_creation = {
         "reader_output_queue" : reader_output_queue,
         "builder_output_queue" : builder_output_queue,
         "state_file" : state_file,
         "stop_event" : stop_event,
-        "num_limit" : 200,
+        "num_limit" : 12000,
         "nodes" : {2},
         "skip_None": True
     }

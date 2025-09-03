@@ -4,6 +4,7 @@ import threading
 import time
 from queue import Queue
 import datetime
+import cProfile
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'pipeline'))
 
@@ -11,7 +12,16 @@ from .pipeline.read_and_emit import StateFileReader
 from .pipeline.graph_builder import GraphBuilder, GraphTypes
 from .pipeline.persist import GraphStorage
 
-import argparse
+
+def profile_thread(target, *args, **kwargs):
+    def wrapped(*args, **kwargs):
+        profiler = cProfile.Profile()
+        profiler.enable()
+        result = target(*args, **kwargs)
+        profiler.disable()
+        profiler.dump_stats(f"{threading.current_thread().name}.prof")        
+        return result
+    return wrapped
 
 def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', stop_event = threading.Event(), num_limit=None, nodes = None, graph_type=GraphTypes.NodeTree, skip_None=False):
     # Create objects
@@ -23,8 +33,8 @@ def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_fil
 
     # Create threads
     threads = [
-        threading.Thread(target=reader.read_and_emit, name="StateFileReaderThread", kwargs={"stop_event": stop_event, "num_limit":num_limit, "lim_nodes":nodes, "skip_None":skip_None}),
-        threading.Thread(target=builder.build_graph, name="GraphBuilderThread", kwargs={"stop_event": stop_event}),
+        threading.Thread(target=profile_thread(reader.read_and_emit), name="StateFileReaderThread", kwargs={"stop_event": stop_event, "num_limit":num_limit, "lim_nodes":nodes, "skip_None":skip_None}),
+        threading.Thread(target=profile_thread(builder.build_graph), name="GraphBuilderThread", kwargs={"stop_event": stop_event}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]
 
@@ -41,7 +51,6 @@ def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_fil
         stop_event.set()
         reader_output_queue.put(None)
         builder_output_queue.put(None)
-
 
 if __name__ == '__main__':
     run()
