@@ -13,7 +13,7 @@ from .pipeline.persist import GraphStorage
 
 import argparse
 
-def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', stop_event = threading.Event()):
+def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', stop_event = threading.Event(), num_limit=None, nodes = None):
     # Create objects
     reader = StateFileReader(buffer=reader_output_queue, state_file=state_file)
     builder = GraphBuilder(buffer=reader_output_queue, output_queue=builder_output_queue, graph_type=GraphTypes.NodeTree)
@@ -23,7 +23,7 @@ def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_fil
 
     # Create threads
     threads = [
-        threading.Thread(target=reader.read_and_emit, name="StateFileReaderThread", kwargs={"stop_event": stop_event}),
+        threading.Thread(target=reader.read_and_emit, name="StateFileReaderThread", kwargs={"stop_event": stop_event, "num_limit":num_limit, "nodes":nodes}),
         threading.Thread(target=builder.build_graph, name="GraphBuilderThread", kwargs={"stop_event": stop_event}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]

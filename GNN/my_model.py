@@ -38,7 +38,7 @@ class GNN(torch.nn.Module):
     
 
 class MyModel:
-    def __init__(self, buffer, hidden_channels=64, train_on=50):
+    def __init__(self, buffer, hidden_channels=64, train_on=50, repeat=171):
         self.model = GNN(hidden_channels)
         self.conv = self.model.converter
         self.buffer = buffer
@@ -46,6 +46,7 @@ class MyModel:
         self.train_dataset = []
         self.test_dataset = []
         self.recieving = True
+        self.repeat = repeat
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -120,7 +121,7 @@ class MyModel:
                     break
                 correct += self._test_ex(data)
         
-        return correct / len(test_loader.dataset)
+        return correct / len(test_loader.dataset) # TODO what if test_loader is None
 
     def train(self, stop_event=None):
         self._train(stop_event=stop_event) 
@@ -129,7 +130,7 @@ class MyModel:
         test_acc = self.test(stop_event=stop_event)
         test_loader = DataLoader(self.test_dataset, batch_size=64, shuffle=False)
 
-        for epoch in range(1, 171): # TODO how many times should this run
+        for epoch in range(1, self.repeat): # TODO how many times should this run
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set, breaking loop.")
                 break

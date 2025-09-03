@@ -11,7 +11,7 @@ class StateFileReader:
         self.state_file = state_file
         self.buffer = buffer
 
-    def read_and_emit(self, stop_event=None):
+    def read_and_emit(self, stop_event=None, num_limit=None, nodes=None):
         """
         Reads the state file line by line and puts each line into the buffer.
         Each line contains a JSON object with node data.
@@ -21,6 +21,8 @@ class StateFileReader:
 
         state = {}
         current_t = None
+
+        count = 0
 
         for batch in pq_file.iter_batches(batch_size=100):
             if stop_event and stop_event.is_set():
@@ -40,15 +42,22 @@ class StateFileReader:
             all_rows = batch.to_pylist()
 
             for i, ts in enumerate(ts_values):
+                if nodes is not None and not (i in nodes): # so we can limit to certain nodes
+                    continue
                 if current_t is None:
                     current_t = ts
                 elif ts != current_t:
                     self.buffer.put(deepcopy(state))
                     state.clear()
                     current_t = ts
+                    count += 1
 
                 state[int(node_values[i])] = all_rows[i] # TODO node_values might not be int
-                    
+            
+            if num_limit is not None and count < num_limit:
+                print("reached row limit in persist")
+                break
+
         self.buffer.put(state)
         self.buffer.put(None)
 
