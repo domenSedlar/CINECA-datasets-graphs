@@ -47,6 +47,8 @@ class MyModel:
         self.test_dataset = []
         self.recieving = True
         self.repeat = repeat
+        self.num_zeros_train = 0
+        self.num_zeros_test = 0 
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -79,6 +81,8 @@ class MyModel:
                 print("val is none in _train")
                 self.recieving = False
                 break
+            if(val.graph["value"] == 0):
+                self.num_zeros_train += 1
             val = self.conv.conv(val)
             self.train_dataset.append(val)
             self._train_on(val)
@@ -114,7 +118,8 @@ class MyModel:
                     self.recieving = False
                     print("val is None")
                     break
-
+                if(val.graph["value"] == 0):
+                    self.num_zeros_test += 1
                 val = self.conv.conv(val)
                 correct += self._test_ex(val)
                 c += 1
@@ -146,3 +151,6 @@ class MyModel:
             train_acc = self.test(test_loader=train_loader, stop_event=stop_event)
             test_acc = self.test(test_loader=test_loader, stop_event=stop_event)
             print(f'Epoch: {epoch:03d}, Train Acc: {train_acc:.4f}, Test Acc: {test_acc:.4f}')
+
+        print("number of graphs with value 0 in training data:", self.num_zeros_train, "ratio:",self.num_zeros_train / len(self.train_dataset))
+        print("number of graphs with value 0 in training data:", self.num_zeros_test, "ratio:",  self.num_zeros_test / len(self.test_dataset))
