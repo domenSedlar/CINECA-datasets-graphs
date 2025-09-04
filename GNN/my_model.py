@@ -4,7 +4,9 @@ import torch.nn.functional as F
 from torch_geometric.nn import GraphConv
 from torch_geometric.nn import global_mean_pool
 from torch_geometric.loader import DataLoader
+from torcheval.metrics.functional import multiclass_auroc, binary_auroc
 from GraphCreation.pipeline.nx_to_torch import Nx2T1Conv2
+from sklearn.metrics import roc_auc_score
 
 
 class GNN(torch.nn.Module):
@@ -72,7 +74,7 @@ class MyModel:
     def _train(self, train_loader=None, stop_event=None):
         self.model.train()
 
-        while self.recieving and len(self.train_dataset) < self.t:
+        while self.recieving and len(self.train_dataset) < self.t: # TODO batch multiple graphs for training
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in _train, breaking loop.")
                 return
@@ -99,17 +101,22 @@ class MyModel:
     def _test_ex(self, data):
         out = self.model(data.x, data.edge_index, data.batch)
         pred = out.argmax(dim=1)
+        probs = F.softmax(out, dim=1) # TODO i don't think normalization is required
         # print("_test_ex", pred, data.y)
-        return int((pred == data.y).sum())
+        return {"correct": int((pred == data.y).sum()), "probs": probs}
 
     # Testing function
     def test(self, test_loader=None, stop_event=None):
         self.model.eval()
         correct = 0
         c = 0
+
+        all_probs = []
+        all_labels = []
+
         if test_loader is None:
             print("loader is None")
-            while self.recieving:
+            while self.recieving: # TODO batch multiple graphs for eval
                 if stop_event and stop_event.is_set():
                     print("MyModel detected stop_event set in _test, breaking loop.")
                     break
@@ -121,26 +128,55 @@ class MyModel:
                 if(val.graph["value"] == 0):
                     self.num_zeros_test += 1
                 val = self.conv.conv(val)
-                correct += self._test_ex(val)
+
+                res = self._test_ex(val)
+
+                correct += res["correct"]
                 c += 1
                 self.test_dataset.append(val)
+                all_probs.append(res["probs"])
+                all_labels.append(val.y.detach().cpu())
         else:
             c = len(test_loader.dataset)
             for data in test_loader:
                 if stop_event and stop_event.is_set():
                     print("MyModel detected stop_event set in _test, breaking loop.")
                     break
-                correct += self._test_ex(data)
-        print(correct, c)
+                res = self._test_ex(data)
+
+                correct += res["correct"]
+                c += 1
+                all_probs.append(res["probs"])
+                all_labels.append(data.y.detach().cpu())
+                print(correct, c)
+
+
         if c == 0:
-            return -1
-        return correct / c
+            return {"acc": -1, "auc": -1}
+
+        acc = correct / c
+
+        # Concatenate all predictions and labels
+        all_probs = torch.cat(all_probs, dim=0)
+        all_labels = torch.cat(all_labels, dim=0)
+
+        # Handle binary vs multiclass
+        try:
+            if all_probs.shape[1] == 2:  # binary classification
+                auc = binary_auroc(all_probs[:, 1], all_labels)
+            else:  # multiclass
+                auc = multiclass_auroc(all_probs, all_labels, num_classes=self.conv.num_classes)
+        except ValueError:
+            auc = -1  # happens if only one class present in labels
+
+        print(f"Correct: {correct}, Total: {c}, Acc: {acc:.4f}, AUC: {auc:.4f}")
+        return {"acc": acc, "auc": auc}
 
     def train(self, stop_event=None):
         self._train(stop_event=stop_event) 
         train_loader = DataLoader(self.train_dataset, batch_size=64, shuffle=True) # TODO what should batch size be
-        train_acc = self.test(test_loader=train_loader, stop_event=stop_event)
-        test_acc = self.test(stop_event=stop_event)
+        train_res = self.test(test_loader=train_loader, stop_event=stop_event)
+        test_res = self.test(stop_event=stop_event)
         test_loader = DataLoader(self.test_dataset, batch_size=64, shuffle=False)
 
         for epoch in range(1, self.repeat): # TODO how many times should this run
@@ -148,9 +184,11 @@ class MyModel:
                 print("MyModel detected stop_event set, breaking loop.")
                 break
             self._train(train_loader=train_loader, stop_event=stop_event)
-            train_acc = self.test(test_loader=train_loader, stop_event=stop_event)
-            test_acc = self.test(test_loader=test_loader, stop_event=stop_event)
-            print(f'Epoch: {epoch:03d}, Train Acc: {train_acc:.4f}, Test Acc: {test_acc:.4f}')
+            train_res = self.test(test_loader=train_loader, stop_event=stop_event)
+            test_res = self.test(test_loader=test_loader, stop_event=stop_event)
+            print(f'Epoch: {epoch:03d}, Train Acc: {train_res["acc"]:.4f}, Test Acc: {test_res["acc"]:.4f}')
+            print(f'Epoch: {epoch:03d}, Train AUC: {train_res["auc"]}, Test AUC: {test_res["auc"]}')
+
 
         print("number of graphs with value 0 in training data:", self.num_zeros_train, "ratio:",self.num_zeros_train / len(self.train_dataset))
         print("number of graphs with value 0 in training data:", self.num_zeros_test, "ratio:",  self.num_zeros_test / len(self.test_dataset))
