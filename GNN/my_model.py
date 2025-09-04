@@ -55,7 +55,7 @@ class MyModel:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
         self.criterion = torch.nn.CrossEntropyLoss()
 
-    def _train_on(self, data):
+    def _train_on(self, data): # Trains on 1 batch
         out = self.model(data.x, data.edge_index, data.batch)
         loss = self.criterion(out, data.y)
         loss.backward()
@@ -71,6 +71,8 @@ class MyModel:
         print(f'Is undirected: {graph.is_undirected()}')
 
     # Training function
+    # Either recieves data from the queue, or creates batches from the saved data.
+    # then uses this to call the training method
     def _train(self, train_loader=None, stop_event=None):
         self.model.train()
 
@@ -98,14 +100,17 @@ class MyModel:
                 break
             self._train_on(data)
 
+    # Tests the model on the given batch
     def _test_ex(self, data):
         out = self.model(data.x, data.edge_index, data.batch)
         pred = out.argmax(dim=1)
-        probs = F.softmax(out, dim=1) # TODO i don't think normalization is required
+        probs = F.softmax(out, dim=1) # TODO i'm not sure if normalization is required
         # print("_test_ex", pred, data.y)
         return {"correct": int((pred == data.y).sum()), "probs": probs}
 
     # Testing function
+    # Either recieves data from the queue, or creates batches from the saved data.
+    # then uses this to call the test method
     def test(self, test_loader=None, stop_event=None):
         self.model.eval()
         correct = 0
@@ -145,7 +150,6 @@ class MyModel:
                 res = self._test_ex(data)
 
                 correct += res["correct"]
-                c += 1
                 all_probs.append(res["probs"])
                 all_labels.append(data.y.detach().cpu())
                 print(correct, c)
@@ -171,6 +175,9 @@ class MyModel:
 
         return {"acc": acc, "auc": auc}
 
+    # The main method to run the model
+    # It runs both training and tests
+    # and outputs the resault
     def train(self, stop_event=None):
         self._train(stop_event=stop_event) 
         train_loader = DataLoader(self.train_dataset, batch_size=64, shuffle=True) # TODO what should batch size be
@@ -196,4 +203,4 @@ class MyModel:
         print(f'Epoch: {epoch:03d}, Train AUC: {train_res["auc"]}, Test AUC: {test_res["auc"]}')
 
         print("number of graphs with value 0 in training data:", self.num_zeros_train, "ratio:",self.num_zeros_train / len(self.train_dataset))
-        print("number of graphs with value 0 in training data:", self.num_zeros_test, "ratio:",  self.num_zeros_test / len(self.test_dataset))
+        print("number of graphs with value 0 in test data:", self.num_zeros_test, "ratio:",  self.num_zeros_test / len(self.test_dataset))

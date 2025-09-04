@@ -13,7 +13,7 @@ def profile_thread(target, *args, **kwargs):
         profiler.enable()
         result = target(*args, **kwargs)
         profiler.disable()
-        # profiler.dump_stats(f"{threading.current_thread().name}.prof")        
+        profiler.dump_stats(f"{threading.current_thread().name}.prof")        
         return result
     return wrapped
 
@@ -24,14 +24,14 @@ def main():
     state_file='GraphCreation/StateFiles/state.parquet'
     stop_event = threading.Event()
 
-    model = MyModel(builder_output_queue, train_on=100, repeat=10) # TODO set optional parameters
+    model = MyModel(builder_output_queue, train_on=30000, repeat=171) # TODO set optional parameters
 
     kwargs_graph_creation = {
         "reader_output_queue" : reader_output_queue,
         "builder_output_queue" : builder_output_queue,
         "state_file" : state_file,
         "stop_event" : stop_event,
-        "num_limit" : 200,
+        "num_limit" : 50000,
         "nodes" : {2},
         "skip_None": True,
         "val_file": 'GraphCreation/StateFiles/2.parquet'

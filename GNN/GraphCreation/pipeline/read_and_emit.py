@@ -31,7 +31,7 @@ class StateFileReader:
         
         return row_generator(pq_file)
     
-    def _next_val(self, ts):
+    def _next_val(self, ts): # TODO add parameter for how far we look
         """
             return value, from the time interval after ts
         """
