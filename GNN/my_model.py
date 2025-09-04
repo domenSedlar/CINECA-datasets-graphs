@@ -169,7 +169,6 @@ class MyModel:
         except ValueError:
             auc = -1  # happens if only one class present in labels
 
-        print(f"Correct: {correct}, Total: {c}, Acc: {acc:.4f}, AUC: {auc:.4f}")
         return {"acc": acc, "auc": auc}
 
     def train(self, stop_event=None):
@@ -184,11 +183,17 @@ class MyModel:
                 print("MyModel detected stop_event set, breaking loop.")
                 break
             self._train(train_loader=train_loader, stop_event=stop_event)
+            if epoch % 10 != 0:
+                continue
             train_res = self.test(test_loader=train_loader, stop_event=stop_event)
             test_res = self.test(test_loader=test_loader, stop_event=stop_event)
             print(f'Epoch: {epoch:03d}, Train Acc: {train_res["acc"]:.4f}, Test Acc: {test_res["acc"]:.4f}')
             print(f'Epoch: {epoch:03d}, Train AUC: {train_res["auc"]}, Test AUC: {test_res["auc"]}')
 
+        train_res = self.test(test_loader=train_loader, stop_event=stop_event)
+        test_res = self.test(test_loader=test_loader, stop_event=stop_event)
+        print(f'Epoch: {epoch:03d}, Train Acc: {train_res["acc"]:.4f}, Test Acc: {test_res["acc"]:.4f}')
+        print(f'Epoch: {epoch:03d}, Train AUC: {train_res["auc"]}, Test AUC: {test_res["auc"]}')
 
         print("number of graphs with value 0 in training data:", self.num_zeros_train, "ratio:",self.num_zeros_train / len(self.train_dataset))
         print("number of graphs with value 0 in training data:", self.num_zeros_test, "ratio:",  self.num_zeros_test / len(self.test_dataset))

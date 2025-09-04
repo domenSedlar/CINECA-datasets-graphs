@@ -23,9 +23,9 @@ def profile_thread(target, *args, **kwargs):
         return result
     return wrapped
 
-def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', stop_event = threading.Event(), num_limit=None, nodes = None, graph_type=GraphTypes.NodeTree, skip_None=False):
+def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', val_file='StateFiles/2.parquet', stop_event = threading.Event(), num_limit=None, nodes = None, graph_type=GraphTypes.NodeTree, skip_None=False):
     # Create objects
-    reader = StateFileReader(buffer=reader_output_queue, state_file=state_file)
+    reader = StateFileReader(buffer=reader_output_queue, state_file=state_file, val_file=val_file, skip_None=skip_None)
     builder = GraphBuilder(buffer=reader_output_queue, output_queue=builder_output_queue, graph_type=graph_type)
     unique_run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     unique_filename = f'all_graphs_{unique_run_id}.pkl'

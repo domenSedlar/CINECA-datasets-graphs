@@ -33,7 +33,8 @@ def main():
         "stop_event" : stop_event,
         "num_limit" : 200,
         "nodes" : {2},
-        "skip_None": True
+        "skip_None": True,
+        "val_file": 'GraphCreation/StateFiles/2.parquet'
     }
 
         # Create threads
