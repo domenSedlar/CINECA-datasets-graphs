@@ -1,4 +1,5 @@
 import torch
+from torch_geometric.data import Batch
 from torch.nn import Linear
 import torch.nn.functional as F
 from torch_geometric.nn import GraphConv
@@ -95,6 +96,8 @@ class MyModel:
     def _train(self, train_loader=None, stop_event=None):
         self.model.train()
 
+        batch = []
+
         while self.recieving and len(self.train_dataset) < self.t: # TODO batch multiple graphs for training
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in _train, breaking loop.")
@@ -103,6 +106,9 @@ class MyModel:
             if val is None:
                 print("val is none in _train")
                 self.recieving = False
+                b = Batch.from_data_list(batch)
+                self._train(b)
+                batch = []
                 break
             if(val.graph["value"] == 0):
                 self.num_zeros_train += 1
@@ -112,7 +118,13 @@ class MyModel:
                     self.train_dataset.append(val)
             else:
                 self.train_dataset.append(val)
-            self._train_on(val)
+
+            batch.append(val)
+            if len(batch) >= 64:
+                b = Batch.from_data_list(batch)
+                self._train(b)
+                batch = []
+            # self._train_on(val)
 
         if train_loader is None:
             return
@@ -141,31 +153,44 @@ class MyModel:
 
         all_probs = []
         all_labels = []
-
         if test_loader is None:
+            batch = []
             while self.recieving: # TODO batch multiple graphs for eval
                 if stop_event and stop_event.is_set():
                     print("MyModel detected stop_event set in _test, breaking loop.")
-                    break
+                    return
                 val = self.buffer.get()
                 if val is None:
                     self.recieving = False
                     print("val is None")
+                    
+                    b = Batch.from_data_list(batch)
+                    res = self._test_ex(b)
+                    batch = []
+                    correct += res["correct"]
+                    all_probs.append(res["probs"])
+                    all_labels.append(b.y.detach().cpu())
                     break
                 if(val.graph["value"] == 0):
                     self.num_zeros_test += 1
                 val = self.conv.conv(val)
-
-                res = self._test_ex(val)
-
-                correct += res["correct"]
-                c += 1
                 self.test_dataset.append(val)
-                all_probs.append(res["probs"])
-                all_labels.append(val.y.detach().cpu())
+
+                batch.append(val)
+                c+=1
+
+                if len(batch) >= 64:
+                    b = Batch.from_data_list(batch)
+                    res = self._test_ex(b)
+                    batch = []
+                    correct += res["correct"]
+                    all_probs.append(res["probs"])
+                    all_labels.append(val.y.detach().cpu())
+
         else:
             c = len(test_loader.dataset)
             for data in test_loader:
+                print(data)
                 if stop_event and stop_event.is_set():
                     print("MyModel detected stop_event set in _test, breaking loop.")
                     break
