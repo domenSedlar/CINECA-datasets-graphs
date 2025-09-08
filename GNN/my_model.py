@@ -39,7 +39,7 @@ class GNN(torch.nn.Module):
     
 
 class MyModel:
-    def __init__(self, buffer, hidden_channels=64, train_on=50, repeat=171):
+    def __init__(self, buffer, hidden_channels=64, train_on=50, repeat=171, counter_weight=1):
         self.model = GNN(hidden_channels)
         self.conv = self.model.converter
         self.buffer = buffer
@@ -52,7 +52,21 @@ class MyModel:
         self.num_zeros_test = 0 
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
-        self.criterion = torch.nn.CrossEntropyLoss()
+        
+        w = 1000 / self.conv.num_classes
+
+        temp_counts = []
+        for _ in range(self.conv.num_classes):
+             temp_counts.append(w)
+
+        temp_counts[0] = w * counter_weight
+
+        counts = torch.tensor(temp_counts, dtype=torch.float)
+        total = counts.sum()
+
+        class_weights = total / (len(counts) * counts)
+        
+        self.criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
 
     def _train_on(self, data): # Trains on 1 batch
         out = self.model(data.x, data.edge_index, data.batch)
@@ -76,6 +90,7 @@ class MyModel:
         self.model.train()
 
         while self.recieving and len(self.train_dataset) < self.t: # TODO batch multiple graphs for training
+            print("recv")
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in _train, breaking loop.")
                 return
