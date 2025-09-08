@@ -174,7 +174,7 @@ class MyModel:
                 correct += res["correct"]
                 all_probs.append(res["probs"])
                 all_labels.append(data.y.detach().cpu())
-                print(correct, c)
+#                print(correct, c)
 
 
         if c == 0:
