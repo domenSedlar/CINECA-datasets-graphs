@@ -17,14 +17,14 @@ def profile_thread(target, *args, **kwargs):
         return result
     return wrapped
 
-def main():
+def run(counter_weight=1, oversampling=1, max_dist_scalar=8):
     q_limit = 100 # TODO do we need this?
     reader_output_queue = Queue() 
     builder_output_queue = Queue()
     state_file='GraphCreation/StateFiles/state.parquet'
     stop_event = threading.Event()
 
-    model = MyModel(builder_output_queue, train_on=500, repeat=171) # TODO set optional parameters
+    model = MyModel(builder_output_queue, train_on=500, repeat=30, counter_weight=counter_weight, oversampling=oversampling) # TODO set optional parameters
 
     kwargs_graph_creation = {
         "reader_output_queue" : reader_output_queue,
@@ -35,7 +35,7 @@ def main():
         "num_limit" : 1000, # How many rows to read from the state file (None for all)
         "nodes" : {2}, # list of nodes we use
         "skip_None": True, # do we skip rows with no valid class?
-        "max_dist_scalar": 8 # how close does the machine state need to be for it to be relevant. (in 15 min intervals)
+        "max_dist_scalar": max_dist_scalar # how close does the machine state need to be for it to be relevant. (in 15 min intervals)
             # sometimes there are intervals of time where the machine status wasn't being monitored
             # if the gap is small, we can just return the next value
             # if large, the machine status might no longer be relavent to the current timestamp
@@ -64,6 +64,9 @@ def main():
         reader_output_queue.put(None)
         builder_output_queue.put(None)
 
+
+def main():
+    run()
 
 if __name__ == '__main__':
     main()

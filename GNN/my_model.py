@@ -39,7 +39,12 @@ class GNN(torch.nn.Module):
     
 
 class MyModel:
-    def __init__(self, buffer, hidden_channels=64, train_on=50, repeat=171, counter_weight=1):
+    def __init__(self, buffer, hidden_channels=64, train_on=50, repeat=171, counter_weight=1, oversampling=1):
+        """
+            repeat: how many times to train on the dataset
+            counter_weight: how many times should 0 class be weighted lower. Where 1 means it should be treated as the other classes
+            oversampling: (int) how many times should we readd non zero values to the training dataset(1 means we dont oversample)
+        """
         self.model = GNN(hidden_channels)
         self.conv = self.model.converter
         self.buffer = buffer
@@ -49,7 +54,8 @@ class MyModel:
         self.recieving = True
         self.repeat = repeat
         self.num_zeros_train = 0
-        self.num_zeros_test = 0 
+        self.num_zeros_test = 0
+        self.oversampling = oversampling
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
         
@@ -90,7 +96,6 @@ class MyModel:
         self.model.train()
 
         while self.recieving and len(self.train_dataset) < self.t: # TODO batch multiple graphs for training
-            print("recv")
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in _train, breaking loop.")
                 return
@@ -102,7 +107,11 @@ class MyModel:
             if(val.graph["value"] == 0):
                 self.num_zeros_train += 1
             val = self.conv.conv(val)
-            self.train_dataset.append(val)
+            if(val.y.item() != 0):
+                for i in range(self.oversampling):
+                    self.train_dataset.append(val)
+            else:
+                self.train_dataset.append(val)
             self._train_on(val)
 
         if train_loader is None:
