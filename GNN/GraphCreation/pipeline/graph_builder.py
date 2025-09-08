@@ -152,7 +152,6 @@ class GraphBuilder:
                     self.output_queue.put(self.graph.copy())
                 else:
                     for g in self.graphs.values():
-                        # print("g value:", g.graph["value"])
                         self.output_queue.put(g.copy())
 
     def build_graph_nn_s(self, state): # nn_s: node_sensor, all nodes connected to each other

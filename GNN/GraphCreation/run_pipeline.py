@@ -19,11 +19,11 @@ def profile_thread(target, *args, **kwargs):
         profiler.enable()
         result = target(*args, **kwargs)
         profiler.disable()
-        profiler.dump_stats(f"{threading.current_thread().name}.prof")        
+        # profiler.dump_stats(f"{threading.current_thread().name}.prof")        
         return result
     return wrapped
 
-def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', val_file='StateFiles/2.parquet', stop_event = threading.Event(), num_limit=None, nodes = None, graph_type=GraphTypes.NodeTree, skip_None=False):
+def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', val_file='StateFiles/2.parquet', stop_event = threading.Event(), num_limit=None, nodes = None, graph_type=GraphTypes.NodeTree, skip_None=True, max_dist_scalar=8):
     # Create objects
     reader = StateFileReader(buffer=reader_output_queue, state_file=state_file, val_file=val_file, skip_None=skip_None)
     builder = GraphBuilder(buffer=reader_output_queue, output_queue=builder_output_queue, graph_type=graph_type)
@@ -33,7 +33,7 @@ def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_fil
 
     # Create threads
     threads = [
-        threading.Thread(target=profile_thread(reader.read_and_emit), name="StateFileReaderThread", kwargs={"stop_event": stop_event, "num_limit":num_limit, "lim_nodes":nodes, "skip_None":skip_None}),
+        threading.Thread(target=profile_thread(reader.read_and_emit), name="StateFileReaderThread", kwargs={"stop_event": stop_event, "num_limit":num_limit, "lim_nodes":nodes, "skip_None":skip_None, "max_dist_scalar":max_dist_scalar}),
         threading.Thread(target=profile_thread(builder.build_graph), name="GraphBuilderThread", kwargs={"stop_event": stop_event}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]

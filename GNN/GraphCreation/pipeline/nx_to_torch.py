@@ -14,12 +14,12 @@ class Nx2T1Conv:
         if nx_graph.graph["value"] is not None:
              # TODO value should be int, but isnt allways
             y_val = int(round(nx_graph.graph["value"]))
-            nx_graph.graph["y"] = torch.tensor([y_val], dtype=torch.long)
+            nx_graph.graph["y"] = torch.tensor([y_val], dtype=torch.int)
             # print("y:",nx_graph.graph["value"], y_val)
         else:
             #TODO what do we do with None values?
             y_val = 3
-            nx_graph.graph["y"] = torch.tensor([y_val], dtype=torch.long)
+            nx_graph.graph["y"] = torch.tensor([y_val], dtype=torch.int)
 
 
         # x ~ features of nodes
@@ -58,14 +58,12 @@ class Nx2T1Conv2: # this one also keeps track of node type
     def conv(self, nx_graph):
         # y ~ classification of the graph
         if nx_graph.graph["value"] is not None:
-             # TODO value should be int, but isnt allways
             y_val = int(round(nx_graph.graph["value"]))
-            nx_graph.graph["y"] = torch.tensor([y_val], dtype=torch.int)
+            nx_graph.graph["y"] = torch.tensor([y_val], dtype=torch.long)
             # print("y:",nx_graph.graph["value"], y_val)
         else:
-            #TODO what do we do with None values?
             y_val = 3
-            nx_graph.graph["y"] = torch.tensor([y_val], dtype=torch.int)
+            nx_graph.graph["y"] = torch.tensor([y_val], dtype=torch.long)
 
 
         # x ~ features of nodes

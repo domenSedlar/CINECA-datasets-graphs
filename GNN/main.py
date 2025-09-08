@@ -24,17 +24,23 @@ def main():
     state_file='GraphCreation/StateFiles/state.parquet'
     stop_event = threading.Event()
 
-    model = MyModel(builder_output_queue, train_on=30000, repeat=171) # TODO set optional parameters
+    model = MyModel(builder_output_queue, train_on=500, repeat=171) # TODO set optional parameters
 
     kwargs_graph_creation = {
         "reader_output_queue" : reader_output_queue,
         "builder_output_queue" : builder_output_queue,
-        "state_file" : state_file,
-        "stop_event" : stop_event,
-        "num_limit" : 50000,
-        "nodes" : {2},
-        "skip_None": True,
-        "val_file": 'GraphCreation/StateFiles/2.parquet'
+        "state_file" : state_file, # location of the state file
+        "val_file": 'GraphCreation/StateFiles/2.parquet', # location of the file containing values
+        "stop_event" : stop_event, 
+        "num_limit" : 1000, # How many rows to read from the state file (None for all)
+        "nodes" : {2}, # list of nodes we use
+        "skip_None": True, # do we skip rows with no valid class?
+        "max_dist_scalar": 8 # how close does the machine state need to be for it to be relevant. (in 15 min intervals)
+            # sometimes there are intervals of time where the machine status wasn't being monitored
+            # if the gap is small, we can just return the next value
+            # if large, the machine status might no longer be relavent to the current timestamp
+            # max_dist_scalar tells the program how large the gap is allowed to be.
+            # where gap = max_dist_scalar * 15 min.
     }
 
         # Create threads

@@ -6,7 +6,6 @@ from torch_geometric.nn import global_mean_pool
 from torch_geometric.loader import DataLoader
 from torcheval.metrics.functional import multiclass_auroc, binary_auroc
 from GraphCreation.pipeline.nx_to_torch import Nx2T1Conv2
-from sklearn.metrics import roc_auc_score
 
 
 class GNN(torch.nn.Module):
@@ -120,7 +119,6 @@ class MyModel:
         all_labels = []
 
         if test_loader is None:
-            print("loader is None")
             while self.recieving: # TODO batch multiple graphs for eval
                 if stop_event and stop_event.is_set():
                     print("MyModel detected stop_event set in _test, breaking loop.")

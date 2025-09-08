@@ -31,9 +31,12 @@ class StateFileReader:
         
         return row_generator(pq_file)
     
-    def _next_val(self, ts): # TODO add parameter for how far we look
+    def _next_val(self, ts, max_dist_scalar):
         """
-            return value, from the time interval after ts
+            Return the next available value after the given timestamp `ts`.
+            max_dist_scalar ~ The maximum allowed gap between `ts` and the next available timestamp.
+                If the gap exceeds this threshold(15min * max_dist_scalar), `None` is returned.
+                If the gap is larger it might no longer be relevant
         """
         if isinstance(ts, str):
             ts = datetime.datetime.fromisoformat(ts)
@@ -42,12 +45,16 @@ class StateFileReader:
             while self.curr_val["timestamp"].as_py() <= ts:
                 self.curr_val = next(self.val_gen)
         except StopIteration:
-            # if generator is exhausted; just keep returning the last value
+            return None
             pass # TODO what *should* we return after running out of data?
         
+        # check distance
+        if self.curr_val["timestamp"].as_py() - ts > datetime.timedelta(minutes=15 * max_dist_scalar):
+            return None
+
         return self.curr_val["value"]
 
-    def read_and_emit(self, stop_event=None, num_limit=None, lim_nodes={2}, skip_None=False): # TODO modify this method to correctly handle multiple nodes
+    def read_and_emit(self, stop_event=None, num_limit=None, lim_nodes={2}, skip_None=True, max_dist_scalar=8): # TODO modify this method to correctly handle multiple nodes
         """
         Reads the state file line by line and puts each line into the buffer.
         Each line contains a JSON object with node data.
@@ -82,6 +89,10 @@ class StateFileReader:
                 if nodes is not None and not (int(nodes[i]) in lim_nodes): # so we can limit to certain nodes
                     continue
 
+                val = self._next_val(ts, max_dist_scalar)
+                if val is None and skip_None:
+                    continue
+
                 if current_t is None:
                     current_t = ts
                 elif ts != current_t:
@@ -91,7 +102,7 @@ class StateFileReader:
                     count += 1
 
                 state[int(node_values[i])] = all_rows[i] # TODO node_values might not be int
-                state[int(node_values[i])]["value"] = float(self._next_val(ts))
+                state[int(node_values[i])]["value"] = int(val)
 
             if num_limit is not None and count >= num_limit:
                 print("reached row limit in persist")
