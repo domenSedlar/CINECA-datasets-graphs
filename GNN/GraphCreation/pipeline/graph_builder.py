@@ -47,6 +47,13 @@ class GraphBuilder:
             print("??, unknown graph type in _update_graph()")
 
     def build_graph_r_n_sg_s(self, state): # r_n_sg_s: rack_node_sensorGroup_sensor
+        """
+            Creates a graph of shape:
+                rack nodes connected to a clique
+                nodes connected to their racks
+                sensor group nodes connected to their nodes
+                sensor nodes connected to their group which is connected to the node they belong to
+        """
         graph = nx.Graph()
         rack_nodes = []  # Track all rack nodes to connect them later
         
@@ -156,6 +163,11 @@ class GraphBuilder:
                         self.output_queue.put(g.copy())
 
     def build_graph_nn_s(self, state): # nn_s: node_sensor, all nodes connected to each other
+        """
+            Builds graph of shape:
+                all nodes are connected to a clique
+                sensors are connected to their nodes
+        """
         graph = nx.Graph()
         node_nodes = []
         
@@ -179,6 +191,12 @@ class GraphBuilder:
         return graph
     
     def build_graph_n_st(self, state, node_id): # n_st, a graph for each node, with connections n(id: position) -> st(id: unique, value: x, type: y) id will later be removed
+        """
+        builds a graph of shape:
+            only one node is present per graph
+            each sensor is connected to the node, creating a star
+        saves the graph to a dictionary
+        """
         graph = nx.Graph()
         racks = [
             [48, 47, 46, 45, None, 44, 43, 42, 41, 40, 39, 38, 37,36,35,34,33, None],
