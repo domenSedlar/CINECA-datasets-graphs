@@ -25,8 +25,10 @@ def eval(file):
                     ones += 1
                 elif int(row) == 2:
                     twos += 1
-    
-    ratio = others/(all-nones)
+    if (all - nones) == 0:
+        ratio = 1
+    else:
+        ratio = others/(all-nones)
 
     return [ratio,all,nones,zeros,others,ones,twos, "node_id= " + file.split('/')[-1].split('.')[0]]
 
