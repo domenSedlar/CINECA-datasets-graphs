@@ -17,7 +17,8 @@ class GraphBuilder:
         self.output_queue = output_queue
         self.graph = None
         self.graphs = {}
-        self.sensor_types = ["temp", "pow"]
+        self.sensor_types = ["temp", "power", "fan", "input", "output"]
+        self.sensor_keywords = {"temp" : ["ambient", "temp", "pcie"], "power": ["power"], "fan":["fan"], "input":["input"], "output":["output"]}
         self.graph_type = graph_type
 
     def _get_sensor_id(self, node_id, sensor_name):
@@ -209,8 +210,11 @@ class GraphBuilder:
                 continue
             stype = "other"
             for i in self.sensor_types:
-                if i in sensor_name:
-                    stype = i
+                for v in self.sensor_keywords[i]:
+                    if v in sensor_name:
+                        stype = i
+                        break
+                if stype != "other":
                     break
             
             graph.add_node(

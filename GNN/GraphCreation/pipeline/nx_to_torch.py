@@ -46,8 +46,7 @@ class Nx2T1Conv:
 
 class Nx2T1Conv2: # this one also keeps track of node type
 
-    # TODO add more graph types
-    sensor_types = ["temp", "pow", "other", "root"]
+    sensor_types = ["temp", "power", "fan", "input", "output"]
 
     num_node_features = 1 + len(sensor_types) # (type, value)
     num_classes = 4 # 0 ~ ok, 1 ~ down, 2 ~ unreachable, 3 ~ unknown
@@ -100,7 +99,7 @@ class Nx2T1Conv2: # this one also keeps track of node type
         return data
     
 class Nx2TBin:
-    sensor_types = ["temp", "pow", "other", "root"]
+    sensor_types = ["temp", "power", "fan", "input", "output"]
 
     num_node_features = 1 + len(sensor_types) # (type, value)
     num_classes = 2 # 0 ~ ok, 1 ~ down
