@@ -75,9 +75,10 @@ class MyModel:
         
         self.criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
 
-    def _train_on(self, data): # Trains on 1 batch
-        out = self.model(data.x, data.edge_index, data.batch)
-        loss = self.criterion(out, data.y)
+    def _train_on(self, batch):
+        """Adjust the weights based on the results of this batch"""
+        out = self.model(batch.x, batch.edge_index, batch.batch)
+        loss = self.criterion(out, batch.y)
         loss.backward()
         self.optimizer.step()
         self.optimizer.zero_grad()
@@ -90,10 +91,8 @@ class MyModel:
         print(f'Has self-loops: {graph.has_self_loops()}')
         print(f'Is undirected: {graph.is_undirected()}')
 
-    # Training function
-    # Either recieves data from the queue, or creates batches from the saved data.
-    # then uses this to call the training method
     def _train(self, train_loader, stop_event=None):
+        """gathers batches from train_loader and trains on them"""
         self.model.train()
 
         for data in train_loader:
@@ -102,18 +101,29 @@ class MyModel:
                 break
             self._train_on(data)
 
-    # Tests the model on the given batch
-    def _test_ex(self, data):
-        out = self.model(data.x, data.edge_index, data.batch)
+    def _test_ex(self, batch):
+        """
+        Tests the model on the given batch
+        Returns how many correct predictions the model made, and what the probabilities were
+        """
+        out = self.model(batch.x, batch.edge_index, batch.batch)
         pred = out.argmax(dim=1)
         probs = F.softmax(out, dim=1) # TODO i'm not sure if normalization is required
+
+        
         # print("_test_ex", pred, data.y)
-        return {"correct": int((pred == data.y).sum()), "probs": probs}
+        return {"correct": int((pred == batch.y).sum()), "probs": probs}
 
     # Testing function
     # Either recieves data from the queue, or creates batches from the saved data.
     # then uses this to call the test method
     def test(self, test_loader, stop_event=None, size_of_data=-1):
+        """
+        Gathers batches from and calls a test on them. 
+        Returns a dict containing 
+            - acc = num of correct guesses / num of examples
+            - auc = AUC ROC score 
+        """
         self.model.eval()
         correct = 0
         c = size_of_data
@@ -153,7 +163,7 @@ class MyModel:
         return {"acc": acc, "auc": auc}
 
     def _init_training_data(self, stop_event):
-
+        
         while self.recieving and len(self.train_dataset) < self.t:
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in _init_training_data, breaking loop.")
@@ -191,10 +201,11 @@ class MyModel:
         self._init_training_data(stop_event=stop_event)
         self._init_test_data(stop_event=stop_event)
 
-    # The main method to run the model
-    # It runs both training and tests
-    # and outputs the resault
     def train(self, stop_event=None):
+        """
+        The main method to run the model
+        It runs for multiple epochs, and outputs the results of each one
+        """
         self._init_data(stop_event=stop_event)
         train_loader = DataLoader(self.train_dataset, batch_size=64, shuffle=True) # TODO what should batch size be
         test_loader = DataLoader(self.test_dataset, batch_size=64, shuffle=False)

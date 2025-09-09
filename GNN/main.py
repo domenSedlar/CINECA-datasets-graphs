@@ -24,7 +24,7 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     state_file='GraphCreation/StateFiles/state.parquet'
     stop_event = threading.Event()
 
-    model = MyModel(builder_output_queue, train_on=5000, repeat=30, counter_weight=counter_weight, oversampling=oversampling) # TODO set optional parameters
+    model = MyModel(builder_output_queue, train_on=15000, repeat=30, counter_weight=counter_weight, oversampling=oversampling, hidden_channels=32) # TODO set optional parameters
 
     node_id = 4
 
@@ -34,7 +34,7 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
         "state_file" : state_file, # location of the state file
         "val_file": 'GraphCreation/StateFiles/' + str(node_id) + '.parquet', # location of the file containing values
         "stop_event" : stop_event, 
-        "num_limit" :10000, # How many rows to read from the state file (None for all)
+        "num_limit" :30000, # How many rows to read from the state file (None for all)
         "nodes" : {node_id}, # list of nodes we use
         "skip_None": True, # do we skip rows with no valid class?
         "max_dist_scalar": max_dist_scalar # how close does the machine state need to be for it to be relevant. (in 15 min intervals)
