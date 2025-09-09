@@ -26,7 +26,7 @@ def eval(file):
                 elif int(row) == 2:
                     twos += 1
     if (all - nones) == 0:
-        ratio = 1
+        ratio = 0
     else:
         ratio = others/(all-nones)
 
