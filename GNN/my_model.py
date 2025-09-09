@@ -113,15 +113,14 @@ class MyModel:
     # Testing function
     # Either recieves data from the queue, or creates batches from the saved data.
     # then uses this to call the test method
-    def test(self, test_loader, stop_event=None):
+    def test(self, test_loader, stop_event=None, size_of_data=-1):
         self.model.eval()
         correct = 0
-        c = 0
+        c = size_of_data
 
         all_probs = []
         all_labels = []
 
-        c = len(test_loader.dataset)
         for data in test_loader:
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in _test, breaking loop.")
@@ -206,13 +205,13 @@ class MyModel:
                 break
             self._train(train_loader=train_loader, stop_event=stop_event)
 
-            train_res = self.test(test_loader=train_loader, stop_event=stop_event)
-            test_res = self.test(test_loader=test_loader, stop_event=stop_event)
+            train_res = self.test(test_loader=train_loader, stop_event=stop_event, size_of_data=len(self.train_dataset))
+            test_res = self.test(test_loader=test_loader, stop_event=stop_event, size_of_data=len(self.test_dataset))
             print(f'Epoch: {epoch:03d}, Train Acc: {train_res["acc"]:.4f}, Test Acc: {test_res["acc"]:.4f}')
             print(f'Epoch: {epoch:03d}, Train AUC: {train_res["auc"]}, Test AUC: {test_res["auc"]}')
 
-        train_res = self.test(test_loader=train_loader, stop_event=stop_event)
-        test_res = self.test(test_loader=test_loader, stop_event=stop_event)
+        train_res = self.test(test_loader=train_loader, stop_event=stop_event, size_of_data=len(self.train_dataset))
+        test_res = self.test(test_loader=test_loader, stop_event=stop_event, size_of_data=len(self.test_dataset))
         print(f'Epoch: {epoch:03d}, Train Acc: {train_res["acc"]:.4f}, Test Acc: {test_res["acc"]:.4f}')
         print(f'Epoch: {epoch:03d}, Train AUC: {train_res["auc"]}, Test AUC: {test_res["auc"]}')
 
