@@ -19,7 +19,7 @@ def profile_thread(target, *args, **kwargs):
         profiler.enable()
         result = target(*args, **kwargs)
         profiler.disable()
-        # profiler.dump_stats(f"{threading.current_thread().name}.prof")        
+        profiler.dump_stats(f"{threading.current_thread().name}2.prof")        
         return result
     return wrapped
 

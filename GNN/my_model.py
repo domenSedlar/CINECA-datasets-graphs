@@ -6,7 +6,7 @@ from torch_geometric.nn import GraphConv
 from torch_geometric.nn import global_mean_pool
 from torch_geometric.loader import DataLoader
 from torcheval.metrics.functional import multiclass_auroc, binary_auroc
-from GraphCreation.pipeline.nx_to_torch import Nx2T1Conv2
+from GraphCreation.pipeline.nx_to_torch import Nx2TBin
 
 
 class GNN(torch.nn.Module):
@@ -14,7 +14,7 @@ class GNN(torch.nn.Module):
         super(GNN, self).__init__()
         torch.manual_seed(12345)
 
-        self.converter = Nx2T1Conv2()
+        self.converter = Nx2TBin()
 
         self.conv1 = GraphConv(self.converter.num_node_features, hidden_channels)
         self.conv2 = GraphConv(hidden_channels, hidden_channels)
@@ -93,41 +93,8 @@ class MyModel:
     # Training function
     # Either recieves data from the queue, or creates batches from the saved data.
     # then uses this to call the training method
-    def _train(self, train_loader=None, stop_event=None):
+    def _train(self, train_loader, stop_event=None):
         self.model.train()
-
-        batch = []
-
-        while self.recieving and len(self.train_dataset) < self.t: # TODO batch multiple graphs for training
-            if stop_event and stop_event.is_set():
-                print("MyModel detected stop_event set in _train, breaking loop.")
-                return
-            val = self.buffer.get()
-            if val is None:
-                print("val is none in _train")
-                self.recieving = False
-                b = Batch.from_data_list(batch)
-                self._train(b)
-                batch = []
-                break
-            if(val.graph["value"] == 0):
-                self.num_zeros_train += 1
-            val = self.conv.conv(val)
-            if(val.y.item() != 0):
-                for i in range(self.oversampling):
-                    self.train_dataset.append(val)
-            else:
-                self.train_dataset.append(val)
-
-            batch.append(val)
-            if len(batch) >= 64:
-                b = Batch.from_data_list(batch)
-                self._train(b)
-                batch = []
-            # self._train_on(val)
-
-        if train_loader is None:
-            return
 
         for data in train_loader:
             if stop_event and stop_event.is_set():
@@ -146,61 +113,25 @@ class MyModel:
     # Testing function
     # Either recieves data from the queue, or creates batches from the saved data.
     # then uses this to call the test method
-    def test(self, test_loader=None, stop_event=None):
+    def test(self, test_loader, stop_event=None):
         self.model.eval()
         correct = 0
         c = 0
 
         all_probs = []
         all_labels = []
-        if test_loader is None:
-            batch = []
-            while self.recieving: # TODO batch multiple graphs for eval
-                if stop_event and stop_event.is_set():
-                    print("MyModel detected stop_event set in _test, breaking loop.")
-                    return
-                val = self.buffer.get()
-                if val is None:
-                    self.recieving = False
-                    print("val is None")
-                    
-                    b = Batch.from_data_list(batch)
-                    res = self._test_ex(b)
-                    batch = []
-                    correct += res["correct"]
-                    all_probs.append(res["probs"])
-                    all_labels.append(b.y.detach().cpu())
-                    break
-                if(val.graph["value"] == 0):
-                    self.num_zeros_test += 1
-                val = self.conv.conv(val)
-                self.test_dataset.append(val)
 
-                batch.append(val)
-                c+=1
+        c = len(test_loader.dataset)
+        for data in test_loader:
+            if stop_event and stop_event.is_set():
+                print("MyModel detected stop_event set in _test, breaking loop.")
+                break
+            res = self._test_ex(data)
 
-                if len(batch) >= 64:
-                    b = Batch.from_data_list(batch)
-                    res = self._test_ex(b)
-                    batch = []
-                    correct += res["correct"]
-                    all_probs.append(res["probs"])
-                    all_labels.append(val.y.detach().cpu())
-
-        else:
-            c = len(test_loader.dataset)
-            for data in test_loader:
-                print(data)
-                if stop_event and stop_event.is_set():
-                    print("MyModel detected stop_event set in _test, breaking loop.")
-                    break
-                res = self._test_ex(data)
-
-                correct += res["correct"]
-                all_probs.append(res["probs"])
-                all_labels.append(data.y.detach().cpu())
+            correct += res["correct"]
+            all_probs.append(res["probs"])
+            all_labels.append(data.y.detach().cpu())
 #                print(correct, c)
-
 
         if c == 0:
             return {"acc": -1, "auc": -1}
@@ -222,14 +153,51 @@ class MyModel:
 
         return {"acc": acc, "auc": auc}
 
+    def _init_training_data(self, stop_event):
+
+        while self.recieving and len(self.train_dataset) < self.t:
+            if stop_event and stop_event.is_set():
+                print("MyModel detected stop_event set in _init_training_data, breaking loop.")
+                return
+            val = self.buffer.get()
+            if val is None:
+                print("val is none in _train")
+                self.recieving = False
+
+            if(val.graph["value"] == 0):
+                self.num_zeros_train += 1
+            val = self.conv.conv(val)
+            if(val.y.item() != 0):
+                for i in range(self.oversampling):
+                    self.train_dataset.append(val)
+            else:
+                self.train_dataset.append(val)
+
+    def _init_test_data(self, stop_event):
+            while self.recieving: # TODO batch multiple graphs for eval
+                if stop_event and stop_event.is_set():
+                    print("MyModel detected stop_event set in _test, breaking loop.")
+                    return
+                val = self.buffer.get()
+                if val is None:
+                    self.recieving = False
+                    print("val is None")
+                    break
+                if(val.graph["value"] == 0):
+                    self.num_zeros_test += 1
+                val = self.conv.conv(val)
+                self.test_dataset.append(val)
+
+    def _init_data(self, stop_event):
+        self._init_training_data(stop_event=stop_event)
+        self._init_test_data(stop_event=stop_event)
+
     # The main method to run the model
     # It runs both training and tests
     # and outputs the resault
     def train(self, stop_event=None):
-        self._train(stop_event=stop_event) 
+        self._init_data(stop_event=stop_event)
         train_loader = DataLoader(self.train_dataset, batch_size=64, shuffle=True) # TODO what should batch size be
-        train_res = self.test(test_loader=train_loader, stop_event=stop_event)
-        test_res = self.test(stop_event=stop_event)
         test_loader = DataLoader(self.test_dataset, batch_size=64, shuffle=False)
 
         for epoch in range(1, self.repeat): # TODO how many times should this run
@@ -237,8 +205,7 @@ class MyModel:
                 print("MyModel detected stop_event set, breaking loop.")
                 break
             self._train(train_loader=train_loader, stop_event=stop_event)
-            if epoch % 10 != 0:
-                continue
+
             train_res = self.test(test_loader=train_loader, stop_event=stop_event)
             test_res = self.test(test_loader=test_loader, stop_event=stop_event)
             print(f'Epoch: {epoch:03d}, Train Acc: {train_res["acc"]:.4f}, Test Acc: {test_res["acc"]:.4f}')

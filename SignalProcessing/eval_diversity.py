@@ -17,6 +17,8 @@ def eval(file):
             all += 1
             if not row.is_valid:
                 nones += 1
+            elif int(row) == 3:
+                nones += 1
             elif int(row) == 0:
                 zeros += 1
             else:
@@ -25,6 +27,9 @@ def eval(file):
                     ones += 1
                 elif int(row) == 2:
                     twos += 1
+                else:
+                    print(row)
+    
     if (all - nones) == 0:
         ratio = 0
     else:
