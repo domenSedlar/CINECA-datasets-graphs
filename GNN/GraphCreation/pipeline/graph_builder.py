@@ -146,7 +146,11 @@ class GraphBuilder:
             if state is None:
                 print("No more state data to process. Exiting.")
                 if self.output_queue is not None:
+                    print("placing None")
                     self.output_queue.put(None)
+                    self.output_queue.put(None)
+                    self.output_queue.put(None)
+
                 break
             self._update_graph(state)
             # print(state[2]['timestamp'], state[2]['ambient_avg'])

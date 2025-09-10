@@ -26,11 +26,10 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
 
     model = MyModel(
         builder_output_queue, 
-        train_on=15000,                     # will train on the first 'train_on' number of graphs it recieves from the queue
+        train_on=35000,                     # will train on the first 'train_on' number of graphs it recieves from the queue
         repeat=30,                          # for how many epochs we train the model
-        counter_weight=counter_weight,      # higher number(1 being lowest) puts a lower weight for the class 0, which means everything is fine.(0 makes up most of the dataset)
         oversampling=oversampling,          # oversampling of non zero values. (1 means we dont oversample, 2 that we double)
-        hidden_channels=32
+        hidden_channels=64
         ) # TODO set optional parameters
 
     node_id = 4
@@ -41,7 +40,7 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
         "state_file" : state_file,          # location of the state file
         "val_file": 'GraphCreation/StateFiles/' + str(node_id) + '.parquet', # location of the file containing values
         "stop_event" : stop_event, 
-        "num_limit" :30000,                 # How many rows to read from the state file (None for all)
+        "num_limit" :None,                 # How many rows to read from the state file (None for all)
         "nodes" : {node_id},                # list of nodes we use
         "skip_None": True,                  # do we skip rows with no valid class?
         "max_dist_scalar": max_dist_scalar # how close does the machine state need to be for it to be relevant. (in 15 min intervals)

@@ -40,7 +40,7 @@ class GNN(torch.nn.Module):
     
 
 class MyModel:
-    def __init__(self, buffer, hidden_channels=64, train_on=50, repeat=171, counter_weight=1, oversampling=1):
+    def __init__(self, buffer, hidden_channels=64, train_on=50, repeat=171, oversampling=1, class_weighting=True):
         """
             repeat: how many times to train on the dataset
             counter_weight: how many times should 0 class be weighted lower. Where 1 means it should be treated as the other classes
@@ -54,26 +54,15 @@ class MyModel:
         self.test_dataset = []
         self.recieving = True
         self.repeat = repeat
+        self.label_diversety = [0 for _ in range(self.conv.num_classes)]
         self.num_zeros_train = 0
         self.num_zeros_test = 0
         self.oversampling = oversampling
+        self.class_weighting = class_weighting
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
         
-        w = 1000 / self.conv.num_classes
-
-        temp_counts = []
-        for _ in range(self.conv.num_classes):
-             temp_counts.append(w)
-
-        temp_counts[0] = w * counter_weight
-
-        counts = torch.tensor(temp_counts, dtype=torch.float)
-        total = counts.sum()
-
-        class_weights = total / (len(counts) * counts)
-        
-        self.criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
+        self.criterion = torch.nn.CrossEntropyLoss()
 
     def _train_on(self, batch):
         """Adjust the weights based on the results of this batch"""
@@ -172,20 +161,22 @@ class MyModel:
             if val is None:
                 print("val is none in _train")
                 self.recieving = False
-
-            if(val.graph["value"] == 0):
-                self.num_zeros_train += 1
+            if len(self.train_dataset) % 100 == 0:
+                print(len(self.train_dataset), " in init train data")
             val = self.conv.conv(val)
+            self.label_diversety[val.y.item()] += 1
             if(val.y.item() != 0):
                 for i in range(self.oversampling):
                     self.train_dataset.append(val)
             else:
                 self.train_dataset.append(val)
+        
+        self.num_zeros_test = self.label_diversety[0]
 
     def _init_test_data(self, stop_event):
             while self.recieving: # TODO batch multiple graphs for eval
                 if stop_event and stop_event.is_set():
-                    print("MyModel detected stop_event set in _test, breaking loop.")
+                    print("MyModel detected stop_event set in _init_test_data, breaking loop.")
                     return
                 val = self.buffer.get()
                 if val is None:
@@ -194,12 +185,27 @@ class MyModel:
                     break
                 if(val.graph["value"] == 0):
                     self.num_zeros_test += 1
+                if len(self.test_dataset) % 100 == 0:
+                    print(len(self.test_dataset), " in init test data")
                 val = self.conv.conv(val)
                 self.test_dataset.append(val)
+
+    def _set_class_weights(self):
+        print("setting weights")
+        counts = torch.tensor(self.label_diversety, dtype=torch.float)
+        total = counts.sum()
+
+        class_weights = total / (len(counts) * counts) # less frequent classes have a stronger weight
+
+        self.criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
+        print("set weights")
 
     def _init_data(self, stop_event):
         self._init_training_data(stop_event=stop_event)
         self._init_test_data(stop_event=stop_event)
+
+        if self.class_weighting:
+            self._set_class_weights()
 
     def train(self, stop_event=None):
         """
@@ -209,7 +215,8 @@ class MyModel:
         self._init_data(stop_event=stop_event)
         train_loader = DataLoader(self.train_dataset, batch_size=64, shuffle=True) # TODO what should batch size be
         test_loader = DataLoader(self.test_dataset, batch_size=64, shuffle=False)
-
+        print("number of graphs with value 0 in training data:", self.num_zeros_train, "ratio:",self.num_zeros_train / len(self.train_dataset))
+        print("number of graphs with value 0 in test data:", self.num_zeros_test, "ratio:",  self.num_zeros_test / len(self.test_dataset))
         for epoch in range(1, self.repeat): # TODO how many times should this run
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set, breaking loop.")
