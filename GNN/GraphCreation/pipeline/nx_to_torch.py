@@ -83,44 +83,39 @@ class Nx2TBin:
 
     def conv(self, nx_graph):
         # y ~ classification of the graph
-        if nx_graph.graph["value"] is not None:
+        if nx_graph.graph.get("value") is not None:
             y_val = 0 if int(nx_graph.graph["value"]) == 0 else 1
-            nx_graph.graph["y"] = torch.tensor([y_val], dtype=torch.long)
-            # print("y:",nx_graph.graph["value"], y_val)
         else:
             y_val = 0
-            nx_graph.graph["y"] = torch.tensor([y_val], dtype=torch.long)
+        y_tensor = torch.tensor([y_val], dtype=torch.long)
 
+        nodes = list(nx_graph.nodes())
 
-        # x ~ features of nodes
-        for node in nx_graph.nodes(data=False):
-            node_id = node # TODO maybe make gnn differentiate nodes
-            if "value" in nx_graph.nodes[node].keys():
-                if nx_graph.nodes[node]["value"] is not None:
-                    node_value = nx_graph.nodes[node]["value"]
-                else:
-                    node_value = 0
-                nx_graph.nodes[node]["position"] = (0,0)
-            else:
-                node_value = 0
-                nx_graph.nodes[node]["value"] = 0
-                nx_graph.nodes[node]["type"] = "root"
+        # Values (default 0 if missing/None)
+        values = torch.tensor(
+            [nx_graph.nodes[n].get("value", 0) or 0 for n in nodes],
+            dtype=torch.float32
+        ).unsqueeze(1)  # shape: [num_nodes, 1]
+        
+                # Types → indices
+        type_indices = [
+            self.sensor_types.index(nx_graph.nodes[n].get("type", "root"))
+            for n in nodes
+        ]
+        type_indices = torch.tensor(type_indices, dtype=torch.long)
 
-            type_idx = self.sensor_types.index(nx_graph.nodes[node]["type"])
+        # One-hot encode all at once
+        type_onehots = torch.nn.functional.one_hot(
+            type_indices, num_classes=len(self.sensor_types)
+        ).float()  # shape: [num_nodes, num_types]
 
-            # One-hot encode type
-            type_onehot = torch.nn.functional.one_hot(
-                torch.tensor(type_idx),
-                num_classes=len(self.sensor_types)
-            ).float()
+        # Concatenate [value] + one-hot
+        x = torch.cat([values, type_onehots], dim=1)  # shape: [num_nodes, num_node_features]
 
-            # Concatenate [value] + one-hot
-            node_feat = torch.cat([torch.tensor([node_value], dtype=torch.float32), type_onehot], dim=0)
-
-
-            nx_graph.nodes[node]["x"] = node_feat
-            # print(nx_graph.nodes[node])
-
+        # --- Build PyG Data object ---
         data = from_networkx(nx_graph)
-        del data.graph_value # TODO check what graph_value even is
+        if hasattr(data, "graph_value"):
+            del data.graph_value  # drop if present
+        data.x = x
+        data.y = y_tensor
         return data

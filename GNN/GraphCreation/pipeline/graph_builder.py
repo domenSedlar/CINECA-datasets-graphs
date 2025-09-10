@@ -221,9 +221,9 @@ class GraphBuilder:
                     else:
                         pos_x = 2
 
-        pos = (pos_x, pos_y)
+        pos = (pos_x, pos_y) # TODO use position
 
-        graph.add_node(node_id, position=pos)
+        graph.add_node(node_id, type="root", value=0)
 
         val = state.pop("value")
 
