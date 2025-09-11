@@ -17,9 +17,9 @@ class MyLoader:
         self.num_classes = self.conv.num_classes
         self.num_node_features = self.conv.num_node_features
 
-        self.label_diversety = [0 for i in range(self.num_classes)]
-        self.num_zeros_train = 0
-        self.num_zeros_test = 0
+        self.test_label_diversety = [0 for i in range(self.num_classes)]
+        self.train_label_diversety = [0 for i in range(self.num_classes)]
+
         self.test_dataset = []
         self.train_dataset = []
         self.t = 1000
@@ -39,16 +39,13 @@ class MyLoader:
 
             val = self.conv.conv(val)
             # print(val.y.item())
-            self.label_diversety[val.y.item()] += 1
+            self.train_label_diversety[val.y.item()] += 1
 
             self.train_dataset.append(val)
             
             # print(val.x)
             # print("")
         
-        print(self.label_diversety)
-        self.num_zeros_train = self.label_diversety[0]
-
     def _init_test_data(self, stop_event=None):
             while True:
 
@@ -62,14 +59,16 @@ class MyLoader:
                     print("val is None")
                     break
 
-                if(val.graph["value"] == 0):
-                    self.num_zeros_test += 1
-
                 if len(self.test_dataset) % 1000 == 0:
                     print(len(self.test_dataset), " in init test data")
 
                 val = self.conv.conv(val)
+                self.test_label_diversety[val.y.item()] += 1
                 self.test_dataset.append(val)
+
+    def out_diversity(self):
+        print("train dataset label distribution: ", self.train_label_diversety)
+        print("test dataset label distribution: ", self.test_label_diversety)
 
 
     def _init_data(self, stop_event):
