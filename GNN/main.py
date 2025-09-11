@@ -27,7 +27,6 @@ def profile_thread(target, *args, **kwargs):
         ) # TODO set optional parameters
     """
 def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
-    q_limit = 100 # TODO do we need this?
     reader_output_queue = Queue() 
     builder_output_queue = Queue()
     filter_out_queue = Queue()
@@ -60,7 +59,7 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     threads = [
         threading.Thread(target=run_pipeline.run, name="GraphCreatorThread", kwargs=kwargs_graph_creation),
         # threading.Thread(target=filter, name="filterThread", kwargs={"in_q":builder_output_queue, "out_q": filter_out_queue,"stop_event": stop_event}),
-        threading.Thread(target=profile_thread(model.train), name="GNNthread"),
+        threading.Thread(target=profile_thread(model.train), name="GNNthread", kwargs={"stop_event": stop_event}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]
 

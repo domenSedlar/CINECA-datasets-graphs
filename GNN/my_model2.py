@@ -20,9 +20,12 @@ class MyModel:
         self.criterion = torch.nn.CrossEntropyLoss()
 
     # Training function
-    def _train(self ,train_loader):
+    def _train(self ,train_loader, stop_event=None):
         self.model.train()
         for data in train_loader:
+            if stop_event and stop_event.is_set():
+                print("MyModel detected stop_event set in _train, breaking loop.")
+                return
             out = self.model(data.x, data.edge_index, data.batch)
             loss = self.criterion(out, data.y)
             loss.backward()
@@ -31,13 +34,16 @@ class MyModel:
 
     # Testing function
     # Testing function
-    def test(self, loader):
+    def test(self, loader, stop_event=None):
         self.model.eval()
         all_probs = []
         all_labels = []
 
         correct = 0
         for data in loader:
+            if stop_event and stop_event.is_set():
+                print("MyModel detected stop_event set in test, breaking loop.")
+                return
             out = self.model(data.x, data.edge_index, data.batch)
             pred = out.argmax(dim=1)
             correct += int((pred == data.y).sum())
@@ -51,18 +57,20 @@ class MyModel:
         # print("auc:", auc)
         return {"auc":auc, "acc": correct/len(loader.dataset)}
 
-    def train(self):
-                
+    def train(self, stop_event=None):
         # Training loop
-        train_loader = self.dataset.get_train_loader()
-        test_loader = self.dataset.get_test_loader()
+        train_loader = self.dataset.get_train_loader(stop_event=stop_event)
+        test_loader = self.dataset.get_test_loader(stop_event=stop_event)
 
         self.dataset.out_diversity()
 
         for epoch in range(1, 171):
-            self._train(train_loader)
-            train_auc = self.test(train_loader)
-            test_auc = self.test(test_loader)
+            if stop_event and stop_event.is_set():
+                print("MyModel detected stop_event set in train, breaking loop.")
+                return
+            self._train(train_loader, stop_event=stop_event)
+            train_auc = self.test(train_loader, stop_event=stop_event)
+            test_auc = self.test(test_loader, stop_event=stop_event)
             print(f'Epoch: {epoch:03d}, Train AUC: {train_auc["auc"]:.4f}, Test AUC: {test_auc["auc"]:.4f}')
             print(f'Train acc: {train_auc["acc"]:.4f}, Test acc: {test_auc["acc"]:.4f}')
             print()        

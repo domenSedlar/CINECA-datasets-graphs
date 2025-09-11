@@ -17,8 +17,8 @@ class MyLoader:
         self.num_classes = self.conv.num_classes
         self.num_node_features = self.conv.num_node_features
 
-        self.test_label_diversety = [0 for i in range(self.num_classes)]
-        self.train_label_diversety = [0 for i in range(self.num_classes)]
+        self.test_label_distribution = [0 for i in range(self.num_classes)]
+        self.train_label_distribution = [0 for i in range(self.num_classes)]
 
         self.test_dataset = []
         self.train_dataset = []
@@ -28,7 +28,7 @@ class MyLoader:
         
         while len(self.train_dataset) < self.t:
             if stop_event and stop_event.is_set():
-                print("MyModel detected stop_event set in _init_training_data, breaking loop.")
+                print("MyLoader detected stop_event set in _init_training_data, breaking loop.")
                 return
             val = self.buffer.get()
             if val is None:
@@ -39,7 +39,7 @@ class MyLoader:
 
             val = self.conv.conv(val)
             # print(val.y.item())
-            self.train_label_diversety[val.y.item()] += 1
+            self.train_label_distribution[val.y.item()] += 1
 
             self.train_dataset.append(val)
             
@@ -48,9 +48,8 @@ class MyLoader:
         
     def _init_test_data(self, stop_event=None):
             while True:
-
                 if stop_event and stop_event.is_set():
-                    print("MyModel detected stop_event set in _init_test_data, breaking loop.")
+                    print("MyLoader detected stop_event set in _init_test_data, breaking loop.")
                     return
                 
                 val = self.buffer.get()
@@ -63,24 +62,24 @@ class MyLoader:
                     print(len(self.test_dataset), " in init test data")
 
                 val = self.conv.conv(val)
-                self.test_label_diversety[val.y.item()] += 1
+                self.test_label_distribution[val.y.item()] += 1
                 self.test_dataset.append(val)
 
     def out_diversity(self):
-        print("train dataset label distribution: ", self.train_label_diversety)
-        print("test dataset label distribution: ", self.test_label_diversety)
+        print("train dataset label distribution: ", self.train_label_distribution)
+        print("test dataset label distribution: ", self.test_label_distribution)
 
 
-    def _init_data(self, stop_event):
+    def _init_data(self, stop_event=None):
         self._init_training_data(stop_event=stop_event)
         self._init_test_data(stop_event=stop_event)
 
-    def get_train_loader(self):
-        self._init_training_data()
+    def get_train_loader(self, stop_event=None):
+        self._init_training_data(stop_event=stop_event)
         self.train_loader = DataLoader(self.train_dataset, batch_size=64, shuffle=True)
         return self.train_loader
     
-    def get_test_loader(self):
-        self._init_test_data()
+    def get_test_loader(self, stop_event=None):
+        self._init_test_data(stop_event=stop_event)
         self.test_loader = DataLoader(self.test_dataset, batch_size=64, shuffle=False)
         return self.test_loader
