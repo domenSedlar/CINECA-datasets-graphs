@@ -9,10 +9,11 @@ from torch_geometric.loader import DataLoader
 from GraphCreation.pipeline.nx_to_torch import Nx2TBin
 
 class MyLoader:
-    def __init__(self, buffer):
+    def __init__(self, train_buffer, test_buffer):
         torch.manual_seed(12345)
         self.conv = Nx2TBin()
-        self.buffer = buffer
+        self.train_buffer = train_buffer
+        self.test_buffer = test_buffer
 
         self.num_classes = self.conv.num_classes
         self.num_node_features = self.conv.num_node_features
@@ -22,15 +23,14 @@ class MyLoader:
 
         self.test_dataset = []
         self.train_dataset = []
-        self.t = 1000
 
     def _init_training_data(self, stop_event=None):
         
-        while len(self.train_dataset) < self.t:
+        while True:
             if stop_event and stop_event.is_set():
                 print("MyLoader detected stop_event set in _init_training_data, breaking loop.")
                 return
-            val = self.buffer.get()
+            val = self.train_buffer.get()
             if val is None:
                 print("val is none in init _train")
                 break
@@ -52,7 +52,7 @@ class MyLoader:
                     print("MyLoader detected stop_event set in _init_test_data, breaking loop.")
                     return
                 
-                val = self.buffer.get()
+                val = self.test_buffer.get()
 
                 if val is None:
                     print("val is None")

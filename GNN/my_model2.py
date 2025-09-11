@@ -11,8 +11,8 @@ from my_gcn import GCN
 from get_dataloaders import MyLoader
 
 class MyModel:
-    def __init__(self, buffer):
-        self.dataset = MyLoader(buffer)
+    def __init__(self, train_buffer, test_buffer):
+        self.dataset = MyLoader(train_buffer, test_buffer)
 
         self.model = GCN(128, self.dataset.num_node_features, self.dataset.num_classes)
 

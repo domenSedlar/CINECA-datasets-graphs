@@ -7,6 +7,7 @@ import cProfile
 from GraphCreation import run_pipeline
 from my_model2 import MyModel
 from test_filter import filter
+import datetime
 
 def profile_thread(target, *args, **kwargs):
     def wrapped(*args, **kwargs):
@@ -27,26 +28,35 @@ def profile_thread(target, *args, **kwargs):
         ) # TODO set optional parameters
     """
 def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
-    reader_output_queue = Queue() 
-    builder_output_queue = Queue()
+    train_reader_output_queue = Queue() 
+    train_builder_output_queue = Queue()
+    test_reader_output_queue = Queue() 
+    test_builder_output_queue = Queue()
     filter_out_queue = Queue()
     state_file='GraphCreation/StateFiles/state.parquet'
     stop_event = threading.Event()
 
-    model = MyModel(builder_output_queue)
+    model = MyModel(train_builder_output_queue, test_builder_output_queue)
 
     node_id = 3
 
+    train_start_ts = datetime.datetime.fromtimestamp(1589208300000 / 1000).astimezone() # dividing by 1000 to remove miliseconds, since datatime.fromtimestamp function doesnt expect them
+    train_end_ts = datetime.datetime.fromtimestamp(1591056000000 / 1000).astimezone()
+    test_start_ts = datetime.datetime.fromtimestamp(1589208300000 / 1000).astimezone()
+    test_end_ts = datetime.datetime.fromtimestamp(1591056000000 / 1000).astimezone()
+
     kwargs_graph_creation = {
-        "reader_output_queue" : reader_output_queue,
-        "builder_output_queue" : builder_output_queue,
+        "reader_output_queue" : train_reader_output_queue,
+        "builder_output_queue" : train_builder_output_queue,
         "state_file" : state_file,          # location of the state file
         "val_file": 'GraphCreation/StateFiles/' + str(node_id) + '.parquet', # location of the file containing values
         "stop_event" : stop_event, 
-        "num_limit" :1010,                 # How many rows to read from the state file (None for all)
+        "num_limit" :None,                 # How many rows to read from the state file (None for all)
         "nodes" : {node_id},                # list of nodes we use
         "skip_None": True,                  # do we skip rows with no valid class?
-        "max_dist_scalar": max_dist_scalar # how close does the machine state need to be for it to be relevant. (in 15 min intervals)
+        "max_dist_scalar": max_dist_scalar, # how close does the machine state need to be for it to be relevant. (in 15 min intervals)
+        "start_ts":train_start_ts,
+        "end_ts":train_end_ts
             
             # sometimes there are intervals of time where the machine status wasn't being monitored
             # if the gap is small, we can just return the next value
@@ -55,9 +65,17 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
             # where gap = max_dist_scalar * 15 min.
     }
 
+    training_kwargs = kwargs_graph_creation.copy()
+    test_kwargs = kwargs_graph_creation.copy()
+    test_kwargs["reader_output_queue"] = test_reader_output_queue
+    test_kwargs["builder_output_queue"] = test_builder_output_queue
+    test_kwargs["start_ts"] = test_start_ts
+    test_kwargs["end_ts"] = test_end_ts
+
         # Create threads
     threads = [
-        threading.Thread(target=run_pipeline.run, name="GraphCreatorThread", kwargs=kwargs_graph_creation),
+        threading.Thread(target=run_pipeline.run, name="TrainingGraphCreatorThread", kwargs=training_kwargs),
+        threading.Thread(target=run_pipeline.run, name="TestGraphCreatorThread", kwargs=test_kwargs),
         # threading.Thread(target=filter, name="filterThread", kwargs={"in_q":builder_output_queue, "out_q": filter_out_queue,"stop_event": stop_event}),
         threading.Thread(target=profile_thread(model.train), name="GNNthread", kwargs={"stop_event": stop_event}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
@@ -74,11 +92,9 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     except KeyboardInterrupt:
         print("KeyboardInterrupt received! Setting stop event and sending sentinels.")
         stop_event.set()
-        reader_output_queue.put(None)
-        builder_output_queue.put(None)
-
 
 def main():
+
     run()
 
 if __name__ == '__main__':

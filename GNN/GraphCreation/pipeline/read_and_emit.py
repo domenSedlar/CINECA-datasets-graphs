@@ -54,7 +54,7 @@ class StateFileReader:
 
         return self.curr_val["value"]
 
-    def read_and_emit(self, stop_event=None, num_limit=None, lim_nodes={2}, skip_None=True, max_dist_scalar=8): # TODO modify this method to correctly handle multiple nodes
+    def read_and_emit(self, start_ts=None, end_ts=None, stop_event=None, num_limit=None, lim_nodes={2}, skip_None=True, max_dist_scalar=8): # TODO modify this method to correctly handle multiple nodes
         """
         Reads the state file line by line and puts each line into the buffer.
         Each line contains a JSON object with node data.
@@ -86,6 +86,11 @@ class StateFileReader:
 
             for i, ts in enumerate(ts_values):
                 
+                if not start_ts <= datetime.datetime.fromisoformat(ts):
+                    continue
+                elif not datetime.datetime.fromisoformat(ts) < end_ts:
+                    break
+
                 if nodes is not None and not (int(nodes[i]) in lim_nodes): # so we can limit to certain nodes
                     continue
 
