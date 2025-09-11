@@ -4,7 +4,7 @@ def filter(in_q, out_q, stop_event=None):
 
     print("filtering")
 
-    while zeros < 1 or ones < 1:
+    while zeros < 500 or ones < 500:
         if stop_event and stop_event.is_set():
             print("filter detected stop_event set, breaking loop.")
             break
@@ -14,12 +14,12 @@ def filter(in_q, out_q, stop_event=None):
             out_q.put(None)
             break
         if state.graph["value"] == 0:
-            if zeros < 1:
+            if zeros < 500:
                 out_q.put(state)
             zeros += 1
 
         else:
-            if ones < 1:
+            if ones < 500:
                 out_q.put(state)
             ones += 1
 

@@ -48,8 +48,8 @@ class MyModel:
         all_probs = torch.cat(all_probs, dim=0)
         all_labels = torch.cat(all_labels, dim=0)
         auc = multiclass_auroc(all_probs, all_labels, num_classes=self.dataset.num_classes)
-        print("auc:", auc)
-        return correct / len(loader.dataset)
+        # print("auc:", auc)
+        return auc
 
     def train(self):
                 
@@ -59,6 +59,6 @@ class MyModel:
 
         for epoch in range(1, 171):
             self._train(train_loader)
-            train_acc = self.test(train_loader)
-            test_acc = self.test(test_loader)
-            print(f'Epoch: {epoch:03d}, Train Acc: {train_acc:.4f}, Test Acc: {test_acc:.4f}')
+            train_auc = self.test(train_loader)
+            test_auc = self.test(test_loader)
+            print(f'Epoch: {epoch:03d}, Train AUC: {train_auc:.4f}, Test AUC: {test_auc:.4f}')

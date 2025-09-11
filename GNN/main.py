@@ -28,8 +28,8 @@ def profile_thread(target, *args, **kwargs):
     """
 def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     q_limit = 100 # TODO do we need this?
-    reader_output_queue = Queue(10) 
-    builder_output_queue = Queue(10)
+    reader_output_queue = Queue(500) 
+    builder_output_queue = Queue(500)
     filter_out_queue = Queue()
     state_file='GraphCreation/StateFiles/state.parquet'
     stop_event = threading.Event()

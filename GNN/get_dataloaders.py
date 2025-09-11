@@ -22,7 +22,7 @@ class MyLoader:
         self.num_zeros_test = 0
         self.test_dataset = []
         self.train_dataset = []
-        self.t = 2
+        self.t = 1000
 
     def _init_training_data(self, stop_event=None):
         
@@ -38,13 +38,13 @@ class MyLoader:
                 print(len(self.train_dataset), " in init train data")
 
             val = self.conv.conv(val)
-            print(val.y.item())
+            # print(val.y.item())
             self.label_diversety[val.y.item()] += 1
 
             self.train_dataset.append(val)
             
-            print(val.x)
-            print("")
+            # print(val.x)
+            # print("")
         
         print(self.label_diversety)
         self.num_zeros_train = self.label_diversety[0]
