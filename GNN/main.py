@@ -46,9 +46,9 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     node_id = 3
 
     train_start_ts = datetime.datetime.fromtimestamp(1589208300000 / 1000).astimezone() # dividing by 1000 to remove miliseconds, since datatime.fromtimestamp function doesnt expect them
-    train_end_ts = datetime.datetime.fromtimestamp(1589387400000 / 1000).astimezone()
-    test_start_ts = datetime.datetime.fromtimestamp(1589208300000 / 1000).astimezone()
-    test_end_ts = datetime.datetime.fromtimestamp(1589387400000 / 1000).astimezone()
+    train_end_ts = datetime.datetime.fromisoformat("2022-01-23 05:15:00+00:00").astimezone()
+    test_start_ts = datetime.datetime.fromisoformat("2022-01-23 05:15:00+00:00").astimezone()
+    test_end_ts = datetime.datetime.fromisoformat("2022-09-28 21:45:00+00:00").astimezone()
 
     kwargs_graph_creation = {
         "reader_output_queue" : train_reader_output_queue,

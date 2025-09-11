@@ -43,7 +43,7 @@ class MyModel:
         for data in loader:
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in test, breaking loop.")
-                return
+                return {"auc":-1, "acc": -1}
             out = self.model(data.x, data.edge_index, data.batch)
             pred = out.argmax(dim=1)
             correct += int((pred == data.y).sum())

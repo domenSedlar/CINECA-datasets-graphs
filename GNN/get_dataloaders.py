@@ -66,8 +66,8 @@ class MyLoader:
                 self.test_dataset.append(val)
 
     def out_diversity(self):
-        print("train dataset label distribution: ", self.train_label_distribution)
-        print("test dataset label distribution: ", self.test_label_distribution)
+        print("train dataset label distribution: ", self.train_label_distribution, "in % 0:", (self.train_label_distribution[0]/len(self.train_dataset))*100,", 1:", self.train_label_distribution[1]/len(self.train_dataset))
+        print("test dataset label distribution: ", self.test_label_distribution, "in % 0:", (self.test_label_distribution[0]/len(self.test_dataset))*100,", 1:", (self.test_label_distribution[1]/len(self.test_dataset))*100)
 
 
     def _init_data(self, stop_event=None):
