@@ -83,6 +83,10 @@ class Nx2TBin:
 
     def conv(self, nx_graph):
         # y ~ classification of the graph
+        nodes = list(nx_graph.nodes())
+        print(len(nodes))
+
+        nx_graph = nx.subgraph(nx_graph, [nodes[i] for i in range(int(round(len(nodes)/3)))])
         if nx_graph.graph.get("value") is not None:
             y_val = 0 if int(nx_graph.graph["value"]) == 0 else 1
         else:

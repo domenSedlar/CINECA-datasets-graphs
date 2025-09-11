@@ -5,7 +5,8 @@ import threading
 import cProfile
 
 from GraphCreation import run_pipeline
-from my_model import MyModel
+from my_model2 import MyModel
+from test_filter import filter
 
 def profile_thread(target, *args, **kwargs):
     def wrapped(*args, **kwargs):
@@ -16,23 +17,26 @@ def profile_thread(target, *args, **kwargs):
         profiler.dump_stats(f"{threading.current_thread().name}2.prof")        
         return result
     return wrapped
-
-def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
-    q_limit = 100 # TODO do we need this?
-    reader_output_queue = Queue() 
-    builder_output_queue = Queue()
-    state_file='GraphCreation/StateFiles/state.parquet'
-    stop_event = threading.Event()
-
+    """    
     model = MyModel(
-        builder_output_queue, 
-        train_on=35000,                     # will train on the first 'train_on' number of graphs it recieves from the queue
-        repeat=30,                          # for how many epochs we train the model
+        filter_out_queue, 
+        train_on=2,                     # will train on the first 'train_on' number of graphs it recieves from the queue
+        repeat=170,                          # for how many epochs we train the model
         oversampling=oversampling,          # oversampling of non zero values. (1 means we dont oversample, 2 that we double)
         hidden_channels=64
         ) # TODO set optional parameters
+    """
+def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
+    q_limit = 100 # TODO do we need this?
+    reader_output_queue = Queue(10) 
+    builder_output_queue = Queue(10)
+    filter_out_queue = Queue()
+    state_file='GraphCreation/StateFiles/state.parquet'
+    stop_event = threading.Event()
 
-    node_id = 4
+    model = MyModel(filter_out_queue)
+
+    node_id = 3
 
     kwargs_graph_creation = {
         "reader_output_queue" : reader_output_queue,
@@ -55,7 +59,8 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
         # Create threads
     threads = [
         threading.Thread(target=run_pipeline.run, name="GraphCreatorThread", kwargs=kwargs_graph_creation),
-        threading.Thread(target=profile_thread(model.train), name="GNNthread", kwargs={"stop_event": stop_event}),
+        threading.Thread(target=filter, name="filterThread", kwargs={"in_q":builder_output_queue, "out_q": filter_out_queue,"stop_event": stop_event}),
+        threading.Thread(target=profile_thread(model.train), name="GNNthread"),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]
 

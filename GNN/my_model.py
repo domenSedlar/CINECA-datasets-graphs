@@ -2,7 +2,7 @@ import torch
 from torch_geometric.data import Batch
 from torch.nn import Linear
 import torch.nn.functional as F
-from torch_geometric.nn import GraphConv
+from torch_geometric.nn import GraphConv, GCNConv
 from torch_geometric.nn import global_mean_pool
 from torch_geometric.loader import DataLoader
 from torcheval.metrics.functional import multiclass_auroc, binary_auroc
@@ -16,9 +16,9 @@ class GNN(torch.nn.Module):
 
         self.converter = Nx2TBin()
 
-        self.conv1 = GraphConv(self.converter.num_node_features, hidden_channels)
-        self.conv2 = GraphConv(hidden_channels, hidden_channels)
-        self.conv3 = GraphConv(hidden_channels, hidden_channels)
+        self.conv1 = GCNConv(self.converter.num_node_features, hidden_channels)
+        self.conv2 = GCNConv(hidden_channels, hidden_channels)
+        self.conv3 = GCNConv(hidden_channels, hidden_channels)
         self.lin = Linear(hidden_channels, self.converter.num_classes)
 
     def forward(self, x, edge_index, batch):
@@ -47,12 +47,13 @@ class MyModel:
             oversampling: (int) how many times should we readd non zero values to the training dataset(1 means we dont oversample)
         """
         self.model = GNN(hidden_channels)
+
         self.conv = self.model.converter
+        
         self.buffer = buffer
         self.t = train_on
         self.train_dataset = []
         self.test_dataset = []
-        self.recieving = True
         self.repeat = repeat
         self.label_diversety = [0 for _ in range(self.conv.num_classes)]
         self.num_zeros_train = 0
@@ -66,9 +67,15 @@ class MyModel:
 
     def _train_on(self, batch):
         """Adjust the weights based on the results of this batch"""
+        batch.x = torch.nn.functional.normalize(batch.x) # normalizes node features TODO learn what this means
         out = self.model(batch.x, batch.edge_index, batch.batch)
         loss = self.criterion(out, batch.y)
         loss.backward()
+        for name, param in self.model.named_parameters():
+            if param.grad is None:
+                print(f"No gradient for {name}")
+            else:
+                print(f"Gradient for {name} norm: {param.grad.norm().item():.6f}")
         self.optimizer.step()
         self.optimizer.zero_grad()
 
@@ -88,7 +95,13 @@ class MyModel:
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in _train, breaking loop.")
                 break
+
+            before = {name: param.clone() for name, param in self.model.named_parameters()}
             self._train_on(data)
+
+            for name, param in self.model.named_parameters():
+                change = (param - before[name]).abs().sum().item()
+                print(f"{name} changed by {change:.6f}")
 
     def _test_ex(self, batch):
         """
@@ -96,11 +109,10 @@ class MyModel:
         Returns how many correct predictions the model made, and what the probabilities were
         """
         out = self.model(batch.x, batch.edge_index, batch.batch)
+        print("out in test ex: ",out)
         pred = out.argmax(dim=1)
         probs = F.softmax(out, dim=1) # TODO i'm not sure if normalization is required
-
-        
-        # print("_test_ex", pred, data.y)
+        print("batch.y.type in test ex", batch.y.dtype)  # Should be torch.long        
         return {"correct": int((pred == batch.y).sum()), "probs": probs}
 
     # Testing function
@@ -153,39 +165,44 @@ class MyModel:
 
     def _init_training_data(self, stop_event):
         
-        while self.recieving and len(self.train_dataset) < self.t:
+        while len(self.train_dataset) < self.t:
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in _init_training_data, breaking loop.")
                 return
             val = self.buffer.get()
             if val is None:
                 print("val is none in _train")
-                self.recieving = False
-            if len(self.train_dataset) % 100 == 0:
+                break
+            if len(self.train_dataset) % 1000 == 0:
                 print(len(self.train_dataset), " in init train data")
             val = self.conv.conv(val)
+            print("graph data:")
+            print(val.y.item())
             self.label_diversety[val.y.item()] += 1
             if(val.y.item() != 0):
                 for i in range(self.oversampling):
                     self.train_dataset.append(val)
             else:
                 self.train_dataset.append(val)
+            
+            print(val.x)
+            print("")
         
-        self.num_zeros_test = self.label_diversety[0]
+        print(self.label_diversety)
+        self.num_zeros_train = self.label_diversety[0]
 
     def _init_test_data(self, stop_event):
-            while self.recieving: # TODO batch multiple graphs for eval
+            while True: # TODO batch multiple graphs for eval
                 if stop_event and stop_event.is_set():
                     print("MyModel detected stop_event set in _init_test_data, breaking loop.")
                     return
                 val = self.buffer.get()
                 if val is None:
-                    self.recieving = False
                     print("val is None")
                     break
                 if(val.graph["value"] == 0):
                     self.num_zeros_test += 1
-                if len(self.test_dataset) % 100 == 0:
+                if len(self.test_dataset) % 1000 == 0:
                     print(len(self.test_dataset), " in init test data")
                 val = self.conv.conv(val)
                 self.test_dataset.append(val)
@@ -199,6 +216,7 @@ class MyModel:
 
         self.criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
         print("set weights")
+        print(class_weights)
 
     def _init_data(self, stop_event):
         self._init_training_data(stop_event=stop_event)
@@ -235,3 +253,9 @@ class MyModel:
 
         print("number of graphs with value 0 in training data:", self.num_zeros_train, "ratio:",self.num_zeros_train / len(self.train_dataset))
         print("number of graphs with value 0 in test data:", self.num_zeros_test, "ratio:",  self.num_zeros_test / len(self.test_dataset))
+
+        batch = next(iter(train_loader))
+        out = self.model(batch.x, batch.edge_index, batch.batch)
+        preds = out.argmax(dim=1)
+        print("Predictions:", preds)
+        print("Labels:     ", batch.y)
