@@ -27,6 +27,11 @@ def profile_thread(target, *args, **kwargs):
         hidden_channels=64
         ) # TODO set optional parameters
     """
+
+def run_graph_creation(train_kwargs, test_kwargs):
+    run_pipeline.run(**train_kwargs)
+    run_pipeline.run(**test_kwargs)
+
 def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     train_reader_output_queue = Queue() 
     train_builder_output_queue = Queue()
@@ -41,9 +46,9 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     node_id = 3
 
     train_start_ts = datetime.datetime.fromtimestamp(1589208300000 / 1000).astimezone() # dividing by 1000 to remove miliseconds, since datatime.fromtimestamp function doesnt expect them
-    train_end_ts = datetime.datetime.fromtimestamp(1591056000000 / 1000).astimezone()
+    train_end_ts = datetime.datetime.fromtimestamp(1589387400000 / 1000).astimezone()
     test_start_ts = datetime.datetime.fromtimestamp(1589208300000 / 1000).astimezone()
-    test_end_ts = datetime.datetime.fromtimestamp(1591056000000 / 1000).astimezone()
+    test_end_ts = datetime.datetime.fromtimestamp(1589387400000 / 1000).astimezone()
 
     kwargs_graph_creation = {
         "reader_output_queue" : train_reader_output_queue,
@@ -74,8 +79,7 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
 
         # Create threads
     threads = [
-        threading.Thread(target=run_pipeline.run, name="TrainingGraphCreatorThread", kwargs=training_kwargs),
-        threading.Thread(target=run_pipeline.run, name="TestGraphCreatorThread", kwargs=test_kwargs),
+        threading.Thread(target=run_graph_creation, name="GraphCreatorThread", kwargs={"train_kwargs":training_kwargs, "test_kwargs":test_kwargs}),
         # threading.Thread(target=filter, name="filterThread", kwargs={"in_q":builder_output_queue, "out_q": filter_out_queue,"stop_event": stop_event}),
         threading.Thread(target=profile_thread(model.train), name="GNNthread", kwargs={"stop_event": stop_event}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),

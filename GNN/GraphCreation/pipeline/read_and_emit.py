@@ -64,7 +64,7 @@ class StateFileReader:
 
         state = {}
         current_t = None
-
+        b = False
         count = 0
 
         for batch in pq_file.iter_batches(batch_size=100):
@@ -85,10 +85,11 @@ class StateFileReader:
             all_rows = batch.to_pylist()
 
             for i, ts in enumerate(ts_values):
-                
                 if not start_ts <= datetime.datetime.fromisoformat(ts):
                     continue
                 elif not datetime.datetime.fromisoformat(ts) < end_ts:
+                    print("reached the final timestamp")
+                    b = True
                     break
 
                 if nodes is not None and not (int(nodes[i]) in lim_nodes): # so we can limit to certain nodes
@@ -108,6 +109,9 @@ class StateFileReader:
 
                 state[int(node_values[i])] = all_rows[i] # TODO node_values might not be int
                 state[int(node_values[i])]["value"] = int(val)
+
+            if b:
+                break
 
             if num_limit is not None and count >= num_limit:
                 print("reached row limit in persist")
