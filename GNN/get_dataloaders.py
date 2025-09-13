@@ -24,15 +24,17 @@ class MyLoader:
         self.test_dataset = []
         self.train_dataset = []
 
+        self.prev_y = 0
+
     def _init_training_data(self, stop_event=None):
-        
+        c = 0
         while True:
             if stop_event and stop_event.is_set():
                 print("MyLoader detected stop_event set in _init_training_data, breaking loop.")
                 return
             val = self.train_buffer.get()
             if val is None:
-                print("val is none in init _train")
+                print("val is none in init train data")
                 break
             if len(self.train_dataset) % 1000 == 0:
                 print(len(self.train_dataset), " in init train data")
@@ -43,8 +45,12 @@ class MyLoader:
 
             self.train_dataset.append(val)
             
-            # print(val.x)
-            # print("")
+            # if c < 10 and self.prev_y != val.y.item():
+                #print(val.y.item())
+                #print(val.x)
+                #print("")
+                #c += 1
+                #self.prev_y = val.y.item()
         
     def _init_test_data(self, stop_event=None):
             while True:
@@ -62,11 +68,12 @@ class MyLoader:
                     print(len(self.test_dataset), " in init test data")
 
                 val = self.conv.conv(val)
+
                 self.test_label_distribution[val.y.item()] += 1
                 self.test_dataset.append(val)
 
     def out_diversity(self):
-        print("train dataset label distribution: ", self.train_label_distribution, "in % 0:", (self.train_label_distribution[0]/len(self.train_dataset))*100,", 1:", self.train_label_distribution[1]/len(self.train_dataset))
+        print("train dataset label distribution: ", self.train_label_distribution, "in % 0:", (self.train_label_distribution[0]/len(self.train_dataset))*100,", 1:", self.train_label_distribution[1]/len(self.train_dataset)*100)
         print("test dataset label distribution: ", self.test_label_distribution, "in % 0:", (self.test_label_distribution[0]/len(self.test_dataset))*100,", 1:", (self.test_label_distribution[1]/len(self.test_dataset))*100)
 
 

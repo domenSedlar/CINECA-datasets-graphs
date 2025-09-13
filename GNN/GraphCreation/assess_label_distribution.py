@@ -9,7 +9,7 @@ def eval(file):
     nones = 0
     alls = 0
 
-    mid = (82403 - 35011)/2
+    mid = ((81847- 9258)//2)
     lts = None
 
     for batch in pq_file.iter_batches(batch_size=128, columns=["value", "timestamp"]):
@@ -29,16 +29,16 @@ def eval(file):
                 ones += 1
             
             if (alls - nones) == mid:
-                print(tss[i], alls-nones, zeros, ones, ones/zeros)
+                print(tss[i], alls-nones, zeros, ones, zeros/(zeros+ones))
                 zeros = 0
                 ones = 0
 
-    print(lts, alls-nones, zeros, ones, ones/zeros)
+    print(lts, alls-nones, zeros, ones, zeros/(zeros+ones))
 
             
 
 def main():
-    rootdir = '.\\StateFiles\\4.parquet'
+    rootdir = '.\\StateFiles\\19.parquet'
     eval(rootdir)
 
 if __name__ == "__main__":

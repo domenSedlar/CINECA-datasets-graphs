@@ -67,7 +67,7 @@ class StateFileReader:
         b = False
         count = 0
 
-        for batch in pq_file.iter_batches(batch_size=100):
+        for batch in pq_file.iter_batches(batch_size=100): # TODO create a mask to filter out the wrong dates and nodes
             if stop_event and stop_event.is_set():
                 print("reader: detected stop_event set, breaking loop.")
                 break
