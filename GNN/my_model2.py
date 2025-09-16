@@ -16,7 +16,7 @@ class MyModel:
 
         self.model = GCN(128, self.dataset.num_node_features, self.dataset.num_classes)
 
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.1)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.criterion = torch.nn.CrossEntropyLoss()
 
     # Training function

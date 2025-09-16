@@ -41,7 +41,7 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     state_file='GraphCreation/StateFiles/state.parquet'
     stop_event = threading.Event()
 
-    model = MyModel(test_builder_output_queue, test_builder_output_queue)
+    model = MyModel(train_builder_output_queue, test_builder_output_queue)
 
     node_id = 19
 

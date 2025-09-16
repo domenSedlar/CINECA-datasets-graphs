@@ -84,6 +84,7 @@ class Nx2TBin:
     def conv(self, nx_graph):
         # y ~ classification of the graph
         nodes = list(nx_graph.nodes())
+        # nodes = [nodes[i] for i in range(len(nodes)//2)]
         # print(len(nodes))
 
         nx_graph = nx.subgraph(nx_graph, [nodes[i] for i in range(int(round(len(nodes))))])
@@ -114,7 +115,7 @@ class Nx2TBin:
         ).float()  # shape: [num_nodes, num_types]
 
         # Concatenate [value] + one-hot
-        x = torch.cat([values, type_onehots], dim=1)  # shape: [num_nodes, num_node_features]
+        x = torch.cat([values, type_onehots*values], dim=1)  # shape: [num_nodes, num_node_features] # TODO you're not supposed to multiply oneshot embadings like this. Instead implement this in the forward function of the model
 
         # --- Build PyG Data object ---
         data = from_networkx(nx_graph)
