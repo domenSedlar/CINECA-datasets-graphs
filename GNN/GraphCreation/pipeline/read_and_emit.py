@@ -2,6 +2,8 @@ import json
 from collections import defaultdict
 from queue import Queue
 import pyarrow.parquet as pq
+import pyarrow.compute as pc
+import pyarrow.dataset as ds
 import pyarrow as pa
 import pandas as pd
 from copy import deepcopy
@@ -61,13 +63,16 @@ class StateFileReader:
         """
 
         pq_file = pq.ParquetFile(self.state_file)
+        pq_dataset = ds.dataset(self.state_file)
+
+        scanner = pq_dataset.scanner(batch_size=100, filter=(pc.field("timestamp") >= str(start_ts)) & (pc.field("timestamp") < str(end_ts))) # TODO make this filter better
 
         state = {}
         current_t = None
         b = False
         count = 0
 
-        for batch in pq_file.iter_batches(batch_size=100): # TODO create a mask to filter out the wrong dates and nodes
+        for batch in scanner.to_reader():
             if stop_event and stop_event.is_set():
                 print("reader: detected stop_event set, breaking loop.")
                 break
@@ -85,13 +90,6 @@ class StateFileReader:
             all_rows = batch.to_pylist()
 
             for i, ts in enumerate(ts_values):
-                if not start_ts <= datetime.datetime.fromisoformat(ts):
-                    continue
-                elif not datetime.datetime.fromisoformat(ts) < end_ts:
-                    print("reached the final timestamp")
-                    b = True
-                    break
-
                 if nodes is not None and not (int(nodes[i]) in lim_nodes): # so we can limit to certain nodes
                     continue
 
