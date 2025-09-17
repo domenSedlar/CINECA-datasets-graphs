@@ -18,15 +18,6 @@ def profile_thread(target, *args, **kwargs):
         # profiler.dump_stats(f"{threading.current_thread().name}2.prof")        
         return result
     return wrapped
-    """    
-    model = MyModel(
-        filter_out_queue, 
-        train_on=2,                     # will train on the first 'train_on' number of graphs it recieves from the queue
-        repeat=170,                          # for how many epochs we train the model
-        oversampling=oversampling,          # oversampling of non zero values. (1 means we dont oversample, 2 that we double)
-        hidden_channels=64
-        ) # TODO set optional parameters
-    """
 
 def run_graph_creation(train_kwargs, test_kwargs):
     run_pipeline.run(**test_kwargs)

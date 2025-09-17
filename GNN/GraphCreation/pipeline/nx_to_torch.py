@@ -35,7 +35,7 @@ class Nx2TMulti: # this one also keeps track of node type
 
         # x ~ features of nodes
         for node in nx_graph.nodes(data=False):
-            node_id = node # TODO maybe make gnn differentiate nodes
+            node_id = node
             if "value" in nx_graph.nodes[node].keys():
                 if nx_graph.nodes[node]["value"] is not None:
                     node_value = nx_graph.nodes[node]["value"]
@@ -75,7 +75,7 @@ class Nx2TBin:
     """    
     sensor_types = ["temp", "power", "fan", "input", "output", "other", "root"]
 
-    num_node_features = 1 + len(sensor_types) # (type, value)
+    num_node_features = 1 + len(sensor_types)  + 1 # (type, value, pos_x, pos_y)
     num_classes = 2 # 0 ~ ok, 1 ~ down
 
     def __init__(self):
@@ -101,8 +101,16 @@ class Nx2TBin:
             [nx_graph.nodes[n].get("value", 0) or 0 for n in nodes],
             dtype=torch.float32
         ).unsqueeze(1)  # shape: [num_nodes, 1]
-        
-                # Types → indices
+        pos_x = torch.tensor(
+            [nx_graph.nodes[n].get("pos_x", 0) or 0 for n in nodes],
+            dtype=torch.float32
+        ).unsqueeze(1)  # shape: [num_nodes, 1]
+        pos_y = torch.tensor(
+            [nx_graph.nodes[n].get("pos_y", 0) or 0 for n in nodes],
+            dtype=torch.float32
+        ).unsqueeze(1)  # shape: [num_nodes, 1]
+
+        # Types → indices
         type_indices = [
             self.sensor_types.index(nx_graph.nodes[n].get("type", "root"))
             for n in nodes
@@ -115,7 +123,8 @@ class Nx2TBin:
         ).float()  # shape: [num_nodes, num_types]
 
         # Concatenate [value] + one-hot
-        x = torch.cat([values, type_onehots*values], dim=1)  # shape: [num_nodes, num_node_features] # TODO you're not supposed to multiply oneshot embadings like this. Instead implement this in the forward function of the model
+        x = torch.cat([values, pos_x, pos_y, type_onehots*values], dim=1)  # shape: [num_nodes, num_node_features] # TODO you're not supposed to multiply oneshot embadings like this. Instead implement this in the forward function of the model
+        
 
         # --- Build PyG Data object ---
         data = from_networkx(nx_graph)

@@ -47,7 +47,7 @@ class MyModel:
             out = self.model(data.x, data.edge_index, data.batch)
             pred = out.argmax(dim=1)
             correct += int((pred == data.y).sum())
-            probs = F.softmax(out, dim=1) # TODO i'm not sure if normalization is required
+            probs = F.softmax(out, dim=1)
             all_probs.append(probs)
             all_labels.append(data.y.detach().cpu())
 

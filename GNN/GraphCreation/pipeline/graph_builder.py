@@ -221,9 +221,9 @@ class GraphBuilder:
                     else:
                         pos_x = 2
 
-        pos = (pos_x, pos_y) # TODO use position
+        pos = (pos_x, pos_y) 
 
-        graph.add_node(node_id, type="root", value=0)
+        graph.add_node(node_id, type="root", value=0, pos_x=pos_x, pos_y=pos_y)
 
         val = state.pop("value")
 
@@ -242,7 +242,8 @@ class GraphBuilder:
             graph.add_node(
                 self._get_sensor_id(node_id=node_id, sensor_name=sensor_name),
                 type=stype,
-                value=value
+                value=value,
+                pos_x=pos_x, pos_y=pos_y # TODO some models dont require every node to have the same features
             )
             graph.add_edge(node_id, self._get_sensor_id(node_id=node_id, sensor_name=sensor_name))
 
