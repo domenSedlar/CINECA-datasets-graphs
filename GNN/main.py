@@ -43,22 +43,22 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
 
     model = MyModel(train_builder_output_queue, test_builder_output_queue)
 
-    node_id = 19
+    node_ids = {2, 19}
 
-    train_start_ts = datetime.datetime.fromisoformat("2020-12-01 00:00:00+00:00").astimezone()
-    train_end_ts = datetime.datetime.fromisoformat("2021-03-01 00:00:00+00:00").astimezone()
+    train_start_ts = datetime.datetime.fromisoformat("2020-07-01 00:00:00+00:00").astimezone()
+    train_end_ts = datetime.datetime.fromisoformat("2020-08-01 00:00:00+00:00").astimezone()
     #test_start_ts = datetime.datetime.fromtimestamp(1589208300000 / 1000).astimezone()# dividing by 1000 to remove miliseconds, since datatime.fromtimestamp function doesnt expect them
-    test_start_ts = datetime.datetime.fromisoformat("2020-07-01 00:00:00+00:00").astimezone()
-    test_end_ts = datetime.datetime.fromisoformat("2020-11-01 00:00:00+00:00").astimezone()
+    test_start_ts = datetime.datetime.fromisoformat("2020-12-01 00:00:00+00:00").astimezone()
+    test_end_ts = datetime.datetime.fromisoformat("2021-01-01 00:00:00+00:00").astimezone()
 
     kwargs_graph_creation = {
         "reader_output_queue" : train_reader_output_queue,
         "builder_output_queue" : train_builder_output_queue,
         "state_file" : state_file,          # location of the state file
-        "val_file": 'GraphCreation/StateFiles/' + str(node_id) + '.parquet', # location of the file containing values
+        "val_file": ['GraphCreation/StateFiles/' + str(n) + '.parquet' for n in node_ids], # location of the files containing values
         "stop_event" : stop_event, 
         "num_limit" : None,                 # How many rows to read from the state file (None for all)
-        "nodes" : {node_id},                # list of nodes we use
+        "nodes" : node_ids,                # list of nodes we use
         "skip_None": True,                  # do we skip rows with no valid class?
         "max_dist_scalar": max_dist_scalar, # how close does the machine state need to be for it to be relevant. (in 15 min intervals)
         "start_ts":train_start_ts,

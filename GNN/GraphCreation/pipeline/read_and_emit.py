@@ -14,8 +14,13 @@ class StateFileReader:
     def __init__(self, buffer, state_file='StateFiles/state.parquet', val_file=None, rows_in_mem=64, skip_None=True):
         self.state_file = state_file
         self.buffer = buffer
-        self.val_gen = self._init_val_gen(val_file, rows_in_mem, skip_None)
-        self.curr_val = next(self.val_gen)
+        
+        self.curr_val = {}
+        self.val_gen = {}
+        for f in val_file:
+            id = int(f.split('/')[-1].split('.')[0])
+            self.val_gen[id] = self._init_val_gen(f, rows_in_mem, skip_None)
+            self.curr_val[id] = next(self.val_gen[id])
 
     def _init_val_gen(self, val_file, rows_in_mem, skip_None):
         pq_file = pq.ParquetFile(val_file)
@@ -33,7 +38,7 @@ class StateFileReader:
         
         return row_generator(pq_file)
     
-    def _next_val(self, ts, max_dist_scalar):
+    def _next_val(self, id, ts, max_dist_scalar):
         """
             Return the next available value after the given timestamp `ts`.
             max_dist_scalar ~ The maximum allowed gap between `ts` and the next available timestamp.
@@ -44,17 +49,17 @@ class StateFileReader:
             ts = datetime.datetime.fromisoformat(ts)
 
         try:
-            while self.curr_val["timestamp"].as_py() <= ts:
-                self.curr_val = next(self.val_gen)
+            while self.curr_val[id]["timestamp"].as_py() <= ts:
+                self.curr_val[id] = next(self.val_gen[id])
         except StopIteration:
             return None
             pass # TODO what *should* we return after running out of data?
         
         # check distance
-        if self.curr_val["timestamp"].as_py() - ts > datetime.timedelta(minutes=15 * max_dist_scalar):
+        if self.curr_val[id]["timestamp"].as_py() - ts > datetime.timedelta(minutes=15 * max_dist_scalar):
             return None
 
-        return self.curr_val["value"]
+        return self.curr_val[id]["value"]
 
     def read_and_emit(self, start_ts=None, end_ts=None, stop_event=None, num_limit=None, lim_nodes={2}, skip_None=True, max_dist_scalar=8): # TODO modify this method to correctly handle multiple nodes
         """
@@ -62,7 +67,6 @@ class StateFileReader:
         Each line contains a JSON object with node data.
         """
 
-        pq_file = pq.ParquetFile(self.state_file)
         pq_dataset = ds.dataset(self.state_file)
 
         scanner = pq_dataset.scanner(batch_size=100, filter=(pc.field("timestamp") >= str(start_ts)) & (pc.field("timestamp") < str(end_ts))) # TODO make this filter better
@@ -83,7 +87,7 @@ class StateFileReader:
             # Convert once for the entire batch to Python scalars
             # Avoid per-row overhead
             ts_values = timestamps.to_pylist()
-            node_values = nodes.to_pylist()
+            node_ids = nodes.to_pylist()
 
             # Precompute the row dicts once
             # This avoids deepcopies of the same Arrow Row multiple times
@@ -93,7 +97,7 @@ class StateFileReader:
                 if nodes is not None and not (int(nodes[i]) in lim_nodes): # so we can limit to certain nodes
                     continue
 
-                val = self._next_val(ts, max_dist_scalar)
+                val = self._next_val(node_ids[i], ts, max_dist_scalar)
                 if val is None and skip_None:
                     continue
 
@@ -105,8 +109,8 @@ class StateFileReader:
                     current_t = ts
                     count += 1
 
-                state[int(node_values[i])] = all_rows[i] # TODO node_values might not be int
-                state[int(node_values[i])]["value"] = int(val)
+                state[int(node_ids[i])] = all_rows[i]
+                state[int(node_ids[i])]["value"] = int(val) # TODO what if value is None
 
             if b:
                 break

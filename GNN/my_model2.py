@@ -16,7 +16,7 @@ class MyModel:
 
         self.model = GCN(128, self.dataset.num_node_features, self.dataset.num_classes)
 
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.00001)
         self.criterion = torch.nn.CrossEntropyLoss()
 
     # Training function
@@ -67,6 +67,7 @@ class MyModel:
         for epoch in range(1, 171):
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in train, breaking loop.")
+                self.dataset.out_diversity()
                 return
             self._train(train_loader, stop_event=stop_event)
             train_auc = self.test(train_loader, stop_event=stop_event)
