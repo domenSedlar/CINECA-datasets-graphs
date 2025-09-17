@@ -35,14 +35,16 @@ class GraphBuilder:
                     self.graph.nodes[sensor_node_id]["value"] = value
         elif self.graph_type == GraphTypes.NodeTree:
             for node_id, node_data in state.items():
-                val = node_data.pop("value")
-                for sensor, value in node_data.items():
-
-                    if sensor == "rack_id" or sensor.lower()=="timestamp"or sensor == "node":
-                        continue
-                    sensor_node_id = self._get_sensor_id(node_id, sensor)
-                    self.graphs[node_id].nodes[sensor_node_id]["value"] = value
-                    self.graphs[node_id].graph["value"] = val
+                if node_id in self.graphs:
+                    val = node_data.pop("value")
+                    for sensor, value in node_data.items():
+                        if sensor == "rack_id" or sensor.lower()=="timestamp"or sensor == "node":
+                            continue
+                        sensor_node_id = self._get_sensor_id(node_id, sensor)
+                        self.graphs[node_id].nodes[sensor_node_id]["value"] = value
+                        self.graphs[node_id].graph["value"] = val
+                else:
+                    self.build_graph_n_st(node_data, node_id)
         else:
             print("??, unknown graph type in _update_graph()")
 

@@ -11,7 +11,7 @@ import datetime
 
 
 class StateFileReader:
-    def __init__(self, buffer, state_file='StateFiles/state.parquet', val_file=None, rows_in_mem=64, skip_None=True):
+    def __init__(self, buffer, state_file=['StateFiles/state.parquet'], val_file=None, rows_in_mem=64, skip_None=True):
         self.state_file = state_file
         self.buffer = buffer
         

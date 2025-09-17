@@ -29,12 +29,12 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     test_reader_output_queue = Queue() 
     test_builder_output_queue = Queue()
     filter_out_queue = Queue()
-    state_file='GraphCreation/StateFiles/state.parquet'
+    state_file=['GraphCreation/StateFiles/state.parquet', "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_09-30-02_rack1.parquet"]
     stop_event = threading.Event()
 
     model = MyModel(train_builder_output_queue, test_builder_output_queue)
 
-    node_ids = {2, 19}
+    node_ids = {2, 19, 32}
 
     train_start_ts = datetime.datetime.fromisoformat("2020-07-01 00:00:00+00:00").astimezone()
     train_end_ts = datetime.datetime.fromisoformat("2020-08-01 00:00:00+00:00").astimezone()
