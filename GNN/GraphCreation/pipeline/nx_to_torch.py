@@ -75,7 +75,7 @@ class Nx2TBin:
     """    
     sensor_types = ["temp", "power", "fan", "input", "output", "other", "root"]
 
-    num_node_features = 1 + len(sensor_types)  + 1 # (type, value, pos_x, pos_y)
+    num_node_features = 1 + len(sensor_types)  + 2 # (type, value, pos_x, pos_y)
     num_classes = 2 # 0 ~ ok, 1 ~ down
 
     def __init__(self):
