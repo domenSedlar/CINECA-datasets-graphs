@@ -10,8 +10,8 @@ from torch_geometric.loader import DataLoader
 from datetime import datetime
 import os
 
-from my_gcn import GCN
-from get_dataloaders import MyLoader
+from model.my_gcn import GCN
+from model.get_dataloaders import MyLoader
 
 class MyModel:
     def __init__(self, train_buffer, test_buffer, valid_builder_output_queue, adjust_weights=False, dropout=0):

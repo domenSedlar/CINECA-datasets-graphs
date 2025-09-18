@@ -5,7 +5,7 @@ import threading
 import cProfile
 
 from GraphCreation import run_pipeline
-from my_model2 import MyModel
+from model.my_model2 import MyModel
 from test_filter import filter
 import datetime
 
@@ -35,7 +35,7 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     state_file=['GraphCreation/StateFiles/state.parquet', "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_09-30-02_rack1.parquet", "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_13-31-41_rack44.parquet"]
     stop_event = threading.Event()
 
-    model = MyModel(train_builder_output_queue, test_builder_output_queue, valid_builder_output_queue, dropout=0)
+    model = MyModel(train_builder_output_queue, test_builder_output_queue, valid_builder_output_queue, dropout=0.1)
 
     # node 886 has an okay distribution of values in the last 9 months
     # node 3 has a great but atypical distribution
