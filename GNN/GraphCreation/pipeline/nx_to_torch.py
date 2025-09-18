@@ -75,7 +75,7 @@ class Nx2TBin:
     """    
     sensor_types = ["temp", "power", "fan", "input", "output", "other", "root"]
 
-    num_node_features = 1 + len(sensor_types)  + 2 # (type, value, pos_x, pos_y)
+    num_node_features = 1 + len(sensor_types)   # (type, value, pos_x, pos_y)
     num_classes = 2 # 0 ~ ok, 1 ~ down
 
     def __init__(self):
@@ -123,7 +123,7 @@ class Nx2TBin:
         ).float()  # shape: [num_nodes, num_types]
 
         # Concatenate [value] + one-hot
-        x = torch.cat([values, pos_x, pos_y, type_onehots*values], dim=1)  # shape: [num_nodes, num_node_features] # TODO you're not supposed to multiply oneshot embadings like this. Instead implement this in the forward function of the model
+        x = torch.cat([values, type_onehots*values], dim=1)  # shape: [num_nodes, num_node_features] # TODO you're not supposed to multiply oneshot embadings like this. Instead implement this in the forward function of the model
         
 
         # --- Build PyG Data object ---

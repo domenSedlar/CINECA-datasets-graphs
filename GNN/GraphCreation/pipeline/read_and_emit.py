@@ -38,7 +38,7 @@ class StateFileReader:
         
         return row_generator(pq_file)
     
-    def _next_val(self, id, ts, max_dist_scalar):
+    def _next_val(self, id, ts, max_dist_scalar, time_diff_buff=None):
         """
             Return the next available value after the given timestamp `ts`.
             max_dist_scalar ~ The maximum allowed gap between `ts` and the next available timestamp.
@@ -56,20 +56,25 @@ class StateFileReader:
             pass # TODO what *should* we return after running out of data?
         
         # check distance
+        if time_diff_buff is not None:
+            td = self.curr_val[id]["timestamp"].as_py() - ts
+            if td <= datetime.timedelta(hours=48):
+                time_diff_buff.put({"diff": td.total_seconds()//60, "node": id, "original_timestamp": ts})
+
         if self.curr_val[id]["timestamp"].as_py() - ts > datetime.timedelta(minutes=15 * max_dist_scalar):
             return None
 
         return self.curr_val[id]["value"]
 
-    def read_and_emit(self, start_ts=None, end_ts=None, stop_event=None, num_limit=None, lim_nodes={2}, skip_None=True, max_dist_scalar=8): # TODO modify this to allow multiple racks
+    def read_and_emit(self, start_ts=None, end_ts=None, stop_event=None, num_limit=None, lim_nodes=[2], skip_None=True, max_dist_scalar=8, time_diff_buff=None):
         """
         Reads the state file line by line and puts each line into the buffer.
         Each line contains a JSON object with node data.
         """
 
         pq_dataset = ds.dataset(self.state_file)
-
-        scanner = pq_dataset.scanner(batch_size=100, filter=(pc.field("timestamp") >= str(start_ts)) & (pc.field("timestamp") < str(end_ts))) # TODO make this filter better
+        s_ids = [str(i) for i in lim_nodes]
+        scanner = pq_dataset.scanner(batch_size=100, filter=(pc.field("timestamp") >= str(start_ts)) & (pc.field("timestamp") < str(end_ts)) & (pc.field("node").isin(lim_nodes))) # TODO make this filter better
 
         state = {}
         current_t = None
@@ -97,14 +102,14 @@ class StateFileReader:
                 if nodes is not None and not (int(nodes[i]) in lim_nodes): # so we can limit to certain nodes
                     continue
 
-                val = self._next_val(node_ids[i], ts, max_dist_scalar)
+                val = self._next_val(node_ids[i], ts, max_dist_scalar, time_diff_buff=time_diff_buff)
                 if val is None and skip_None:
                     continue
 
                 if current_t is None:
                     current_t = ts
                 elif ts != current_t:
-                    self.buffer.put(deepcopy(state)) # TODO is deepcopy necessary?
+                    self.buffer.put(deepcopy(state))
                     state.clear()
                     current_t = ts
                     count += 1
@@ -121,6 +126,8 @@ class StateFileReader:
 
         self.buffer.put(state)
         self.buffer.put(None)
+
+        time_diff_buff.put(None)
 
 
 if __name__ == '__main__':

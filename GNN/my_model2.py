@@ -14,9 +14,9 @@ class MyModel:
     def __init__(self, train_buffer, test_buffer):
         self.dataset = MyLoader(train_buffer, test_buffer)
 
-        self.model = GCN(128, self.dataset.num_node_features, self.dataset.num_classes)
+        self.model = GCN(256, self.dataset.num_node_features, self.dataset.num_classes)
 
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.00001)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.0001)
         self.criterion = torch.nn.CrossEntropyLoss()
 
     # Training function

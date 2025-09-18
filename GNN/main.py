@@ -34,13 +34,13 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
 
     model = MyModel(train_builder_output_queue, test_builder_output_queue)
 
-    node_ids = {2, 19, 32}
+    node_ids = [2]
 
     train_start_ts = datetime.datetime.fromisoformat("2020-07-01 00:00:00+00:00").astimezone()
-    train_end_ts = datetime.datetime.fromisoformat("2020-08-01 00:00:00+00:00").astimezone()
+    train_end_ts = datetime.datetime.fromisoformat("2020-11-01 00:00:00+00:00").astimezone()
     #test_start_ts = datetime.datetime.fromtimestamp(1589208300000 / 1000).astimezone()# dividing by 1000 to remove miliseconds, since datatime.fromtimestamp function doesnt expect them
-    test_start_ts = datetime.datetime.fromisoformat("2020-12-01 00:00:00+00:00").astimezone()
-    test_end_ts = datetime.datetime.fromisoformat("2021-01-01 00:00:00+00:00").astimezone()
+    test_start_ts = datetime.datetime.fromisoformat("2021-02-01 00:00:00+00:00").astimezone()
+    test_end_ts = datetime.datetime.fromisoformat("2021-03-01 00:00:00+00:00").astimezone()
 
     kwargs_graph_creation = {
         "reader_output_queue" : train_reader_output_queue,
