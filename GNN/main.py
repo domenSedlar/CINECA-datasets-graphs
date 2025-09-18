@@ -19,29 +19,37 @@ def profile_thread(target, *args, **kwargs):
         return result
     return wrapped
 
-def run_graph_creation(train_kwargs, test_kwargs):
+def run_graph_creation(train_kwargs, test_kwargs, valid_kwargs):
     run_pipeline.run(**test_kwargs)
     run_pipeline.run(**train_kwargs)
+    run_pipeline.run(**valid_kwargs)
 
 def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     train_reader_output_queue = Queue() 
     train_builder_output_queue = Queue()
     test_reader_output_queue = Queue() 
     test_builder_output_queue = Queue()
+    valid_reader_output_queue = Queue() 
+    valid_builder_output_queue = Queue()
     filter_out_queue = Queue()
-    state_file=['GraphCreation/StateFiles/state.parquet', "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_09-30-02_rack1.parquet"]
+    state_file=['GraphCreation/StateFiles/state.parquet', "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_09-30-02_rack1.parquet", "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_13-31-41_rack44.parquet"]
     stop_event = threading.Event()
 
-    model = MyModel(train_builder_output_queue, test_builder_output_queue)
+    model = MyModel(train_builder_output_queue, test_builder_output_queue, valid_builder_output_queue, dropout=0)
 
-    node_ids = [2]
+    # node 886 has an okay distribution of values in the last 9 months
+    # node 3 has a great but atypical distribution
+    node_ids = [886]
 
-    train_start_ts = datetime.datetime.fromisoformat("2020-07-01 00:00:00+00:00").astimezone()
-    train_end_ts = datetime.datetime.fromisoformat("2020-11-01 00:00:00+00:00").astimezone()
+    train_start_ts = datetime.datetime.fromisoformat("2022-01-01 00:00:00+00:00").astimezone()
+    train_end_ts = datetime.datetime.fromisoformat("2022-07-01 00:00:00+00:00").astimezone()
     #test_start_ts = datetime.datetime.fromtimestamp(1589208300000 / 1000).astimezone()# dividing by 1000 to remove miliseconds, since datatime.fromtimestamp function doesnt expect them
-    test_start_ts = datetime.datetime.fromisoformat("2021-02-01 00:00:00+00:00").astimezone()
-    test_end_ts = datetime.datetime.fromisoformat("2021-03-01 00:00:00+00:00").astimezone()
-
+    test_start_ts = datetime.datetime.fromisoformat("2022-07-01 00:00:00+00:00").astimezone()
+    test_end_ts = datetime.datetime.fromisoformat("2022-10-01 00:00:00+00:00").astimezone()
+    #valid_start_ts = datetime.datetime.fromisoformat("2021-10-10 00:00:00+00:00").astimezone()
+    #valid_end_ts = datetime.datetime.fromisoformat("2021-11-01 00:00:00+00:00").astimezone()
+    valid_start_ts = datetime.datetime.fromisoformat("2022-07-01 00:00:00+00:00").astimezone()
+    valid_end_ts = datetime.datetime.fromisoformat("2022-07-10 00:00:00+00:00").astimezone()
     kwargs_graph_creation = {
         "reader_output_queue" : train_reader_output_queue,
         "builder_output_queue" : train_builder_output_queue,
@@ -51,7 +59,7 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
         "num_limit" : None,                 # How many rows to read from the state file (None for all)
         "nodes" : node_ids,                # list of nodes we use
         "skip_None": True,                  # do we skip rows with no valid class?
-        "max_dist_scalar": max_dist_scalar, # how close does the machine state need to be for it to be relevant. (in 15 min intervals)
+        "max_dist_scalar": 15, # how close does the machine state need to be for it to be relevant. (in 15 min intervals)
         "start_ts":train_start_ts,
         "end_ts":train_end_ts
             
@@ -64,15 +72,21 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
 
     training_kwargs = kwargs_graph_creation.copy()
     test_kwargs = kwargs_graph_creation.copy()
+    valid_kwargs = kwargs_graph_creation.copy()
     test_kwargs["reader_output_queue"] = test_reader_output_queue
     test_kwargs["builder_output_queue"] = test_builder_output_queue
     test_kwargs["start_ts"] = test_start_ts
     test_kwargs["end_ts"] = test_end_ts
     test_kwargs["num_limit"] = None
 
+    valid_kwargs["reader_output_queue"] = valid_reader_output_queue
+    valid_kwargs["builder_output_queue"] = valid_builder_output_queue
+    valid_kwargs["start_ts"] = valid_start_ts
+    valid_kwargs["end_ts"] = valid_end_ts
+
         # Create threads
     threads = [
-        threading.Thread(target=run_graph_creation, name="GraphCreatorThread", kwargs={"train_kwargs":training_kwargs, "test_kwargs":test_kwargs}),
+        threading.Thread(target=run_graph_creation, name="GraphCreatorThread", kwargs={"train_kwargs":training_kwargs, "test_kwargs":test_kwargs, "valid_kwargs": valid_kwargs}),
         # threading.Thread(target=filter, name="filterThread", kwargs={"in_q":train_builder_output_queue, "out_q": filter_out_queue,"stop_event": stop_event}),
         threading.Thread(target=profile_thread(model.train), name="GNNthread", kwargs={"stop_event": stop_event}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),

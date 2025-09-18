@@ -213,3 +213,4 @@ GraphCreation/output_graphs/
 logs/
 graph_storage/
 StateFiles/
+GNN/models/

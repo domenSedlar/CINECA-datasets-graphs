@@ -127,7 +127,8 @@ class StateFileReader:
         self.buffer.put(state)
         self.buffer.put(None)
 
-        time_diff_buff.put(None)
+        if time_diff_buff is not None:
+            time_diff_buff.put(None)
 
 
 if __name__ == '__main__':
