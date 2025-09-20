@@ -8,6 +8,7 @@ from GraphCreation import run_pipeline
 from model.my_model2 import MyModel
 from test_filter import filter
 import datetime
+from model.get_dataloaders import MyLoader
 
 def profile_thread(target, *args, **kwargs):
     def wrapped(*args, **kwargs):
@@ -24,7 +25,7 @@ def run_graph_creation(train_kwargs, test_kwargs, valid_kwargs):
     run_pipeline.run(**train_kwargs)
     run_pipeline.run(**valid_kwargs)
 
-def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
+def get_loader(max_dist_scalar=4):
     train_reader_output_queue = Queue() 
     train_builder_output_queue = Queue()
     test_reader_output_queue = Queue() 
@@ -35,18 +36,16 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     state_file=['GraphCreation/StateFiles/state.parquet', "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_09-30-02_rack1.parquet", "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_13-31-41_rack44.parquet"]
     stop_event = threading.Event()
 
-    model = MyModel(train_builder_output_queue, test_builder_output_queue, valid_builder_output_queue, dropout=0.1)
-
     # node 886 has an okay distribution of values in the last 9 months
     # node 3 has a great but atypical distribution
     node_ids = [886]
 
     train_start_ts = datetime.datetime.fromisoformat("2022-01-01 00:00:00+00:00").astimezone()
-    train_end_ts = datetime.datetime.fromisoformat("2022-07-01 00:00:00+00:00").astimezone()
+    train_end_ts = datetime.datetime.fromisoformat("2022-01-02 00:00:00+00:00").astimezone()
     #test_start_ts = datetime.datetime.fromtimestamp(1589208300000 / 1000).astimezone()# dividing by 1000 to remove miliseconds, since datatime.fromtimestamp function doesnt expect them
     test_start_ts = datetime.datetime.fromisoformat("2022-07-01 00:00:00+00:00").astimezone()
-    test_end_ts = datetime.datetime.fromisoformat("2022-10-01 00:00:00+00:00").astimezone()
-    #valid_start_ts = datetime.datetime.fromisoformat("2021-10-10 00:00:00+00:00").astimezone()
+    test_end_ts = datetime.datetime.fromisoformat("2022-07-02 00:00:00+00:00").astimezone()
+    #valid_start_ts = datetime.datetime.fromisoformat("2021-10-25 00:00:00+00:00").astimezone()
     #valid_end_ts = datetime.datetime.fromisoformat("2021-11-01 00:00:00+00:00").astimezone()
     valid_start_ts = datetime.datetime.fromisoformat("2022-07-01 00:00:00+00:00").astimezone()
     valid_end_ts = datetime.datetime.fromisoformat("2022-07-10 00:00:00+00:00").astimezone()
@@ -59,7 +58,7 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
         "num_limit" : None,                 # How many rows to read from the state file (None for all)
         "nodes" : node_ids,                # list of nodes we use
         "skip_None": True,                  # do we skip rows with no valid class?
-        "max_dist_scalar": 15, # how close does the machine state need to be for it to be relevant. (in 15 min intervals)
+        "max_dist_scalar": max_dist_scalar, # how close does the machine state need to be for it to be relevant. (in 15 min intervals)
         "start_ts":train_start_ts,
         "end_ts":train_end_ts
             
@@ -84,11 +83,14 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
     valid_kwargs["start_ts"] = valid_start_ts
     valid_kwargs["end_ts"] = valid_end_ts
 
+    ds = MyLoader(train_builder_output_queue, test_builder_output_queue, valid_builder_output_queue)
+
         # Create threads
     threads = [
         threading.Thread(target=run_graph_creation, name="GraphCreatorThread", kwargs={"train_kwargs":training_kwargs, "test_kwargs":test_kwargs, "valid_kwargs": valid_kwargs}),
         # threading.Thread(target=filter, name="filterThread", kwargs={"in_q":train_builder_output_queue, "out_q": filter_out_queue,"stop_event": stop_event}),
-        threading.Thread(target=profile_thread(model.train), name="GNNthread", kwargs={"stop_event": stop_event}),
+
+        threading.Thread(target=profile_thread(ds._init_data), name="dataloader", kwargs={"stop_event": stop_event}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]
 
@@ -104,9 +106,36 @@ def run(counter_weight=1, oversampling=1, max_dist_scalar=2):
         print("KeyboardInterrupt received! Setting stop event and sending sentinels.")
         stop_event.set()
 
-def main():
+    return ds
 
-    run()
+def run(dataset, adjust_weights=True, dropout=0.066129, llr=0.005532, aggr_method="mean", pool_method="max", num_of_layers=3, hidden_channels=64):
+    model = MyModel(dataset=dataset, dropout=dropout, adjust_weights=adjust_weights, llr=llr, aggr_method=aggr_method, pool_method=pool_method, num_of_layers=num_of_layers, hidden_channels=hidden_channels)
+    stop_event = threading.Event()
+
+    # Container to hold the output
+    results = {}
+
+    def target_func(stop_event, results):
+        # Train the model and store the final metric (e.g., AUC)
+        auc = model.train(stop_event=stop_event)  # assume train returns AUC
+        results["auc"] = auc
+
+    thread = threading.Thread(target=target_func, name="dataloader", kwargs={"stop_event": stop_event, "results": results})
+    
+    thread.start()
+    try:
+        while thread.is_alive():
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt received! Setting stop event.")
+        stop_event.set()
+    
+    thread.join()  # ensure thread finishes
+    return results.get("auc")
+
+
+def main():
+    run(get_loader())
 
 if __name__ == '__main__':
     main()
