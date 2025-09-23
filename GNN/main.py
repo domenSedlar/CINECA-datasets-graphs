@@ -26,6 +26,7 @@ def run_graph_creation(train_kwargs, test_kwargs, valid_kwargs):
     run_pipeline.run(**valid_kwargs)
 
 def get_loader(max_dist_scalar=4):
+    print("getting loader")
     train_reader_output_queue = Queue() 
     train_builder_output_queue = Queue()
     test_reader_output_queue = Queue() 
@@ -41,14 +42,14 @@ def get_loader(max_dist_scalar=4):
     node_ids = [886]
 
     train_start_ts = datetime.datetime.fromisoformat("2022-01-01 00:00:00+00:00").astimezone()
-    train_end_ts = datetime.datetime.fromisoformat("2022-01-02 00:00:00+00:00").astimezone()
+    train_end_ts = datetime.datetime.fromisoformat("2022-07-01 00:00:00+00:00").astimezone()
     #test_start_ts = datetime.datetime.fromtimestamp(1589208300000 / 1000).astimezone()# dividing by 1000 to remove miliseconds, since datatime.fromtimestamp function doesnt expect them
     test_start_ts = datetime.datetime.fromisoformat("2022-07-01 00:00:00+00:00").astimezone()
-    test_end_ts = datetime.datetime.fromisoformat("2022-07-02 00:00:00+00:00").astimezone()
+    test_end_ts = datetime.datetime.fromisoformat("2022-10-02 00:00:00+00:00").astimezone()
     #valid_start_ts = datetime.datetime.fromisoformat("2021-10-25 00:00:00+00:00").astimezone()
     #valid_end_ts = datetime.datetime.fromisoformat("2021-11-01 00:00:00+00:00").astimezone()
-    valid_start_ts = datetime.datetime.fromisoformat("2022-07-01 00:00:00+00:00").astimezone()
-    valid_end_ts = datetime.datetime.fromisoformat("2022-07-10 00:00:00+00:00").astimezone()
+    valid_start_ts = datetime.datetime.fromisoformat("2020-09-01 00:00:00+00:00").astimezone()
+    valid_end_ts = datetime.datetime.fromisoformat("2020-12-01 00:00:00+00:00").astimezone()
     kwargs_graph_creation = {
         "reader_output_queue" : train_reader_output_queue,
         "builder_output_queue" : train_builder_output_queue,
@@ -108,7 +109,7 @@ def get_loader(max_dist_scalar=4):
 
     return ds
 
-def run(dataset, adjust_weights=True, dropout=0.066129, llr=0.005532, aggr_method="mean", pool_method="max", num_of_layers=3, hidden_channels=64):
+def run(dataset, adjust_weights=False, dropout=0.002232071679031126, llr=0.002530762230047059, aggr_method='add', pool_method="mean", num_of_layers=3, hidden_channels=64):
     model = MyModel(dataset=dataset, dropout=dropout, adjust_weights=adjust_weights, llr=llr, aggr_method=aggr_method, pool_method=pool_method, num_of_layers=num_of_layers, hidden_channels=hidden_channels)
     stop_event = threading.Event()
 
