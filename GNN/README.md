@@ -1,41 +1,43 @@
-## GNN
-### Main.py
-Starts both graph creation and and the model. Feeding the output from graph creation to the gnn.
+# GNN
+This program trains the GNN on the provided data, and tests it. The GNN tires to predict if a node, given its current state, will crash in the next 15 minutes.
 
-### Graph creation
-#### read and emit
-Reads the data from the processed parquet files. And for each row it uses the following method to give it its value parameter.
+The program has two parts. The graph Creation part, which creates the graphs for the model to train on, and the part which sets up and uses the gnn. Both parts have a readme which describes them.
 
-```python
-    def _next_val(self, ts): # TODO add parameter for how far we look
-        """
-            return value, from the time interval after ts
-        """
-        if isinstance(ts, str):
-            ts = datetime.datetime.fromisoformat(ts)
+## How to use
+1. Inside of the `GraphCreation` directory create a `StateFiles` folder
 
-        try:
-            while self.curr_val["timestamp"].as_py() <= ts:
-                self.curr_val = next(self.val_gen)
-        except StopIteration:
-            # if generator is exhausted; just keep returning the last value
-            pass # TODO what *should* we return after running out of data?
-        return self.curr_val["value"]
+2. Place your `.parquet` files into the `StateFiles` directory.
+
+    - If the directory does not exist, create it.
+
+    - You can use either:
+
+        - Parquet files modified by the **Signal Processing** step , or
+
+        - The [original dataset files](https://zenodo.org/records/7541722).
+
+3. If using processed files, then also place there the original `.parquet` files for the nodes you wish to process (in the code these files are referred to as value files, or val files, because we mainly only use their value column).
+
+4. Open the main.py in the `GNN` directory. Go to the main() function and enter in the correct values for the variables.
+
+5. run:
+```cmd
+# (Optional) Create a virtual environment
+
+pip install -r requirements.txt
+
+python -m main
 ```
 
-- The generator reads rows from the original file. 
-- It finds the first non null value which comes after the current timestamp.
-- Some nodes have a lot of missing data for the value parameter, Im not sure what to do if there are no near values for a timestamp. 
-- 90% of the values are 0 (which means that the node is running correctly).
+## Other programs
+Description of the other programs found in the `GNN` directory.
 
-this is then fed to graph creation which outputs graphs to the model
+### test_params_ray.py
+- Uses ray tune to find the best hyper parameters for the model. 
+- Run this the same way you run main.py
+- While the test dataset won't affect the results of this program, make it small as it will still be loaded into memory.
 
-#### Conversion of graphs
-nx_to_torch.py converts networkx graphs to data for torch. It gives each node 2 features. First its value, second what type of a node it is, using one hot encodings from torch.
-### Predictions
-I used this as the starting point https://colab.research.google.com/drive/1I8a0DfQ3fI7Njc62__mVXUlcAleUclnb?usp=sharing#scrollTo=cNgkR8SRaU_P
-And kept a lot of things the same for now, like number of hidden layers being 3, with each having 64 channels. 
-
-Both the train and test methods first try to first recieve data from the queue. They then save that data, into a list. This data is then used when we try to train or test the model again.
-
-The data is split into data for training, and data for testing. The model is then trained and tested multiple times. The results being outputed.
+`test_params.py` is the same thing but less efficient.
+### test filter
+*test_filter.py*
+No longer used for anything. It was placed in the pipeline between graphcreation and the model to control how many graphs of a certain label will be present in the dataset.
