@@ -59,7 +59,7 @@ def consumer(stop_event=None, buffer=None):
 
 def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', val_file='StateFiles/2.parquet', start_ts=None, end_ts=None, stop_event = threading.Event(), num_limit=None, nodes = {2}, graph_type=GraphTypes.NodeTree, skip_None=True, max_dist_scalar=8):
     """
-        For each enterie in the processed parquet files, it checks where the closest valid value is (value column tells us if the node is running) in the original.
+        For each row in the state parquet files, it checks where the closest valid value is (value column tells us if the node is running) in the original.
         It saves this data to a csv file
 
         At the start of this function edit the variables to change which nodes we check, and to what file we output.

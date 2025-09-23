@@ -58,12 +58,12 @@ def test_graph_builder():
     
     # Test hierarchical graph
     print("=== Testing Hierarchical Graph (r_n_sg_s) ===")
-    hierarchical_graph = graph_builder.build_graph_r_n_sg_s(sample_state)
+    hierarchical_graph = graph_builder.build_graph_rack_clique(sample_state)
     graph_builder.visualize_graph(hierarchical_graph, "Hierarchical Sensor Graph")
     
     # Test nn_s graph
     print("\n=== Testing Node-to-Node Graph (nn_s) ===")
-    nn_s_graph = graph_builder.build_graph_nn_s(sample_state)
+    nn_s_graph = graph_builder.build_graph_node_clique(sample_state)
     graph_builder.visualize_nn_s_graph(nn_s_graph, "Node-to-Node Sensor Graph")
     
     # Print graph information

@@ -44,11 +44,11 @@ class GraphBuilder:
                         self.graphs[node_id].nodes[sensor_node_id]["value"] = value
                         self.graphs[node_id].graph["value"] = val
                 else:
-                    self.build_graph_n_st(node_data, node_id)
+                    self.build_graph_node_tree(node_data, node_id)
         else:
             print("??, unknown graph type in _update_graph()")
 
-    def build_graph_r_n_sg_s(self, state): # r_n_sg_s: rack_node_sensorGroup_sensor
+    def build_graph_rack_clique(self, state):
         """
             Creates a graph of shape:
                 rack nodes connected to a clique
@@ -119,14 +119,14 @@ class GraphBuilder:
 
         # Switch-like structure for graph building and visualization
         if graph_type == GraphTypes.RackClique:
-            self.graph = self.build_graph_r_n_sg_s(state)
+            self.graph = self.build_graph_rack_clique(state)
             visualize = lambda g: self.visualize_graph(g, title="Rack Clique Graph", graph_type="hierarchical")
         elif graph_type == GraphTypes.NodeClique:
-            self.graph = self.build_graph_nn_s(state)
+            self.graph = self.build_graph_node_clique(state)
             visualize = lambda g: self.visualize_graph(g, title="Node Clique Graph", graph_type="nn_s")
         elif graph_type == GraphTypes.NodeTree:
             for node_id, s in state.items():
-                self.build_graph_n_st(node_id=node_id, state=s)
+                self.build_graph_node_tree(node_id=node_id, state=s)
             nd = None
             
             for node_id, s in state.items():
@@ -168,7 +168,7 @@ class GraphBuilder:
                     for g in self.graphs.values():
                         self.output_queue.put(g.copy())
 
-    def build_graph_nn_s(self, state): # nn_s: node_sensor, all nodes connected to each other
+    def build_graph_node_clique(self, state): # nn_s: node_sensor, all nodes connected to each other
         """
             Builds graph of shape:
                 all nodes are connected to a clique
@@ -196,7 +196,7 @@ class GraphBuilder:
         
         return graph
     
-    def build_graph_n_st(self, state, node_id): # n_st, a graph for each node, with connections n(id: position) -> st(id: unique, value: x, type: y) id will later be removed
+    def build_graph_node_tree(self, state, node_id): # n_st, a graph for each node, with connections n(id: position) -> st(id: unique, value: x, type: y) id will later be removed
         """
         builds a graph of shape:
             only one node is present per graph

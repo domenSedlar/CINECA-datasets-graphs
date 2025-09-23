@@ -132,7 +132,7 @@ def run(dataset, adjust_weights=False, dropout=0.002232071679031126, llr=0.00253
 
 def main():
     node_ids = [886] # list here the nodes you wish to train on
-    # Add the processed files containing data for the nodes here
+    # Add the paths to the processed files containing data for the nodes here. (remove the paths which don't exist)
     state_file=['GraphCreation/StateFiles/state.parquet', "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_09-30-02_rack1.parquet", "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_13-31-41_rack44.parquet"]
     # the program assumes the original files will be present in the same StateFiles folder, with their names unchanged. (dont create any new folders inside of the StateFiles folder)
 

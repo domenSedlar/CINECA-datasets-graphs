@@ -56,7 +56,7 @@ def out_csv(stop_event=None, buffer=None, file="data.csv"):
     print("done")
 
 
-def run(start_ts, end_ts, output_file, reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', val_file={'StateFiles/2.parquet'}, stop_event = threading.Event(), num_limit=None, nodes = {2}, graph_type=GraphTypes.NodeTree, skip_None=True, max_dist_scalar=8):
+def run(start_ts, end_ts, output_file, reader_output_queue = Queue(), builder_output_queue = Queue(), state_file=['StateFiles/state.parquet'], val_file=['StateFiles/2.parquet'], stop_event = threading.Event(), num_limit=None, nodes = [2], graph_type=GraphTypes.NodeTree, skip_None=True, max_dist_scalar=8):
     """
         Reads the specified data, and writes it to a csv file
     """
@@ -91,4 +91,4 @@ if __name__ == '__main__':
     end_ts = datetime.datetime.fromisoformat("2022-03-21 07:30:00+00:00")
     output_file = "data.csv"
 
-    run(start_ts, end_ts, output_file)
+    run(start_ts, end_ts, output_file, state_file=['StateFiles/state.parquet'], val_file=['StateFiles/2.parquet'], nodes=[2])

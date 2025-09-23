@@ -190,7 +190,7 @@ def test_graph_storage():
         
         # Create test graphs
         graph_builder = GraphBuilder(None, None)
-        hierarchical_graph = graph_builder.build_graph_r_n_sg_s(sample_state)
+        hierarchical_graph = graph_builder.build_graph_rack_clique(sample_state)
         nn_s_graph = graph_builder.build_graph_nn_s(sample_state)
         
         print(f"Created hierarchical graph with {hierarchical_graph.number_of_nodes()} nodes and {hierarchical_graph.number_of_edges()} edges")
