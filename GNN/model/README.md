@@ -8,7 +8,7 @@ Nx2T is short for networkx to torch.
 
 It contains two classes:
 - **Nx2Multi**:
-	 - This class uses multi class labeling.
+	- This class uses multi class labeling.
 - **Nx2Bin**:
 	- This class uses binary labeling.
 
