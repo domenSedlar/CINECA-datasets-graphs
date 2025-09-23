@@ -5,7 +5,7 @@ import threading
 import cProfile
 
 from GraphCreation import run_pipeline
-from model.my_model2 import MyModel
+from GNN.model.my_model import MyModel
 from test_filter import filter
 import datetime
 from model.get_dataloaders import MyLoader
@@ -26,7 +26,6 @@ def run_graph_creation(train_kwargs, test_kwargs, valid_kwargs):
     run_pipeline.run(**valid_kwargs)
 
 def get_loader(max_dist_scalar=4):
-    print("getting loader")
     train_reader_output_queue = Queue() 
     train_builder_output_queue = Queue()
     test_reader_output_queue = Queue() 

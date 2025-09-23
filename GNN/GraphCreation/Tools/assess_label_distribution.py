@@ -2,6 +2,14 @@ import pyarrow.parquet as pq
 import os
 
 def eval(file):
+    """
+        Counts the number of zeros, unknowns, and other values in the file.
+        And prints out the distribution of them in the first half, and the second half of the file.
+        format of the output:
+            datetime num-of-known-values num-zeros num-ones zeros/all
+        
+        date time tells you when it stopped reading for this half.
+    """
     pq_file = pq.ParquetFile(file)
     
     zeros = 0
@@ -38,7 +46,12 @@ def eval(file):
             
 
 def main():
-    rootdir = '.\\StateFiles\\19.parquet'
+    # Get the directory of the current file (main.py)
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    node_id = "19"
+    rootdir = os.path.join(BASE_DIR, "StateFiles", f"{node_id}.parquet")
+
     eval(rootdir)
 
 if __name__ == "__main__":

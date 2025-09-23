@@ -12,11 +12,15 @@ from pipeline.read_and_emit import StateFileReader
 from pipeline.graph_builder import GraphBuilder, GraphTypes
 from pipeline.persist import GraphStorage
 
-def out_csv(stop_event=None, buffer=None):
+def out_csv(stop_event=None, buffer=None, file="data.csv"):
+    """
+        Saves data from the buffer to a csv file
+    """
+
     ones = 0
     zeros = 0
 
-    with open("off.csv", mode="w", newline="") as csvfile:
+    with open(file, mode="w", newline="") as csvfile:
         writer = csv.writer(csvfile, delimiter=';')
         
         # Write header row (excluding "value", "node", "timestamp")
@@ -52,17 +56,19 @@ def out_csv(stop_event=None, buffer=None):
     print("done")
 
 
-def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', val_file='StateFiles/2.parquet', start_ts=None, end_ts=None, stop_event = threading.Event(), num_limit=None, nodes = {2}, graph_type=GraphTypes.NodeTree, skip_None=True, max_dist_scalar=8):
+def run(start_ts, end_ts, output_file, reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', val_file={'StateFiles/2.parquet'}, stop_event = threading.Event(), num_limit=None, nodes = {2}, graph_type=GraphTypes.NodeTree, skip_None=True, max_dist_scalar=8):
+    """
+        Reads the specified data, and writes it to a csv file
+    """
+    
     # Create objects
     reader = StateFileReader(buffer=reader_output_queue, state_file=state_file, val_file=val_file, skip_None=skip_None)
-    start_ts = datetime.datetime.fromisoformat("2022-02-01 00:00:00+00:00")
 
-    end_ts = datetime.datetime.fromisoformat("2022-03-21 07:30:00+00:00")
 
     # Create threads
     threads = [
         threading.Thread(target=reader.read_and_emit, name="StateFileReaderThread", kwargs={"stop_event": stop_event, "num_limit":num_limit, "lim_nodes":nodes, "skip_None":skip_None, "max_dist_scalar":max_dist_scalar, "start_ts":start_ts, "end_ts":end_ts}),
-        threading.Thread(target=out_csv, name="csvbuilder", kwargs={"stop_event": stop_event, "buffer": reader_output_queue}),
+        threading.Thread(target=out_csv, name="csvbuilder", kwargs={"stop_event": stop_event, "buffer": reader_output_queue, "file": output_file}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]
 
@@ -81,4 +87,8 @@ def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_fil
         builder_output_queue.put(None)
 
 if __name__ == '__main__':
-    run()
+    start_ts = datetime.datetime.fromisoformat("2022-02-01 00:00:00+00:00")
+    end_ts = datetime.datetime.fromisoformat("2022-03-21 07:30:00+00:00")
+    output_file = "data.csv"
+
+    run(start_ts, end_ts, output_file)

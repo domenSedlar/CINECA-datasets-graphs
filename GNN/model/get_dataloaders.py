@@ -1,6 +1,6 @@
 from torch_geometric.loader import DataLoader
 
-from GraphCreation.pipeline.nx_to_torch import Nx2TBin
+from GNN.model.nx_to_torch import Nx2TBin
 
 class MyLoader:
     """

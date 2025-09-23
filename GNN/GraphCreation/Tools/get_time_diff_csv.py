@@ -12,8 +12,12 @@ from pipeline.read_and_emit import StateFileReader
 from pipeline.graph_builder import GraphBuilder, GraphTypes
 from pipeline.persist import GraphStorage
 
-def out_csv(stop_event=None, buffer=None):
-    with open("time_diff.csv", mode="w", newline="") as csvfile:
+def out_csv(stop_event=None, buffer=None, file="time_diff.csv"):
+    """
+        Writes to csv values recieved from the buffer
+    """
+
+    with open(file, mode="w", newline="") as csvfile:
         writer = csv.writer(csvfile, delimiter=';')
         
         # Write header row (excluding "value", "node", "timestamp")
@@ -40,6 +44,11 @@ def out_csv(stop_event=None, buffer=None):
     print("done")
 
 def consumer(stop_event=None, buffer=None):
+    """
+        Consumes items from the buffer and does nothing with it.
+        Doing this might be better than just keeping it in memmory
+    """
+
     while True:
         val = buffer.get()
         if val is None:
@@ -49,8 +58,19 @@ def consumer(stop_event=None, buffer=None):
             break
 
 def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file='StateFiles/state.parquet', val_file='StateFiles/2.parquet', start_ts=None, end_ts=None, stop_event = threading.Event(), num_limit=None, nodes = {2}, graph_type=GraphTypes.NodeTree, skip_None=True, max_dist_scalar=8):
-    # Create objects
-    node_ids = [2, 3, 4, 5, 6, 19, 32]
+    """
+        For each enterie in the processed parquet files, it checks where the closest valid value is (value column tells us if the node is running) in the original.
+        It saves this data to a csv file
+
+        At the start of this function edit the variables to change which nodes we check, and to what file we output.
+    """
+
+    # you can edit these four lines, to limit which section of the data the program processes
+    node_ids = [2, 3, 4, 5, 6, 19, 32] 
+    file="time_diff.csv"
+    start_ts = datetime.datetime.fromisoformat("2020-03-01 00:00:00+00:00")
+    end_ts = datetime.datetime.fromisoformat("2022-10-21 07:30:00+00:00")
+
 
     reader = StateFileReader(
         buffer=reader_output_queue, 
@@ -59,15 +79,12 @@ def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_fil
         skip_None=skip_None
     )
     time_diff_buff = Queue()
-    start_ts = datetime.datetime.fromisoformat("2020-03-01 00:00:00+00:00")
-
-    end_ts = datetime.datetime.fromisoformat("2022-10-21 07:30:00+00:00")
 
     # Create threads
     threads = [
         threading.Thread(target=reader.read_and_emit, name="StateFileReaderThread", kwargs={"stop_event": stop_event, "num_limit":num_limit, "lim_nodes":node_ids, "skip_None":skip_None, "max_dist_scalar":max_dist_scalar, "start_ts":start_ts, "end_ts":end_ts, "time_diff_buff": time_diff_buff, "max_dist_scalar": 2}),
         threading.Thread(target=out_csv, name="csvbuilder", kwargs={"stop_event": stop_event, "buffer": time_diff_buff}),
-        threading.Thread(target=consumer, name="consumer", kwargs={"stop_event": stop_event, "buffer": reader_output_queue}),
+        threading.Thread(target=consumer, name="consumer", kwargs={"stop_event": stop_event, "buffer": reader_output_queue, "file": file}),
 
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]
