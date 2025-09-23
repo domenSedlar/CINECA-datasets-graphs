@@ -25,21 +25,7 @@ def run_graph_creation(train_kwargs, test_kwargs, valid_kwargs):
     run_pipeline.run(**train_kwargs)
     run_pipeline.run(**valid_kwargs)
 
-def get_loader(max_dist_scalar=4):
-    train_reader_output_queue = Queue() 
-    train_builder_output_queue = Queue()
-    test_reader_output_queue = Queue() 
-    test_builder_output_queue = Queue()
-    valid_reader_output_queue = Queue() 
-    valid_builder_output_queue = Queue()
-    filter_out_queue = Queue()
-    state_file=['GraphCreation/StateFiles/state.parquet', "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_09-30-02_rack1.parquet", "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_13-31-41_rack44.parquet"]
-    stop_event = threading.Event()
-
-    # node 886 has an okay distribution of values in the last 9 months
-    # node 3 has a great but atypical distribution
-    node_ids = [886]
-
+def get_loader(node_ids, state_file, max_dist_scalar=4):
     train_start_ts = datetime.datetime.fromisoformat("2022-01-01 00:00:00+00:00").astimezone()
     train_end_ts = datetime.datetime.fromisoformat("2022-07-01 00:00:00+00:00").astimezone()
     #test_start_ts = datetime.datetime.fromtimestamp(1589208300000 / 1000).astimezone()# dividing by 1000 to remove miliseconds, since datatime.fromtimestamp function doesnt expect them
@@ -49,6 +35,16 @@ def get_loader(max_dist_scalar=4):
     #valid_end_ts = datetime.datetime.fromisoformat("2021-11-01 00:00:00+00:00").astimezone()
     valid_start_ts = datetime.datetime.fromisoformat("2020-09-01 00:00:00+00:00").astimezone()
     valid_end_ts = datetime.datetime.fromisoformat("2020-12-01 00:00:00+00:00").astimezone()
+
+    train_reader_output_queue = Queue() 
+    train_builder_output_queue = Queue()
+    test_reader_output_queue = Queue() 
+    test_builder_output_queue = Queue()
+    valid_reader_output_queue = Queue() 
+    valid_builder_output_queue = Queue()
+    filter_out_queue = Queue()
+    stop_event = threading.Event()
+
     kwargs_graph_creation = {
         "reader_output_queue" : train_reader_output_queue,
         "builder_output_queue" : train_builder_output_queue,
@@ -135,7 +131,13 @@ def run(dataset, adjust_weights=False, dropout=0.002232071679031126, llr=0.00253
 
 
 def main():
-    run(get_loader())
+    node_ids = [886] # list here the nodes you wish to train on
+    # Add the processed files containing data for the nodes here
+    state_file=['GraphCreation/StateFiles/state.parquet', "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_09-30-02_rack1.parquet", "GraphCreation/StateFiles/threaded_pipeline_state_2025-08-10_13-31-41_rack44.parquet"]
+    # the program assumes the original files will be present in the same StateFiles folder, with their names unchanged. (dont create any new folders inside of the StateFiles folder)
+
+    # the top of the get_loader function has variables defining which time intervals are used for training, validation and the final test dataset. You can edit them there if you wish.
+    run(get_loader(node_ids, state_file))
 
 if __name__ == '__main__':
     main()
