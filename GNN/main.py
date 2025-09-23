@@ -5,7 +5,7 @@ import threading
 import cProfile
 
 from GraphCreation import run_pipeline
-from GNN.model.my_model import MyModel
+from model.my_model import MyModel
 from test_filter import filter
 import datetime
 from model.get_dataloaders import MyLoader
