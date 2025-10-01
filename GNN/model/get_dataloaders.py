@@ -108,7 +108,7 @@ class MyLoader:
         self._init_training_data(stop_event=stop_event)
         self._init_test_data(stop_event=stop_event)
         self._init_valid_data(stop_event=stop_event)
-        self.out_diversity()
+        #self.out_diversity()
 
     def get_train_loader(self, stop_event=None):
         self.train_loader = DataLoader(self.train_dataset, batch_size=64, shuffle=True)

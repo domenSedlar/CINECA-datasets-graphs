@@ -91,14 +91,14 @@ class MyModel:
         #print("set weights")
         #print(class_weights)
 
-    def train(self, stop_event=None, max_no_improvement=50, save_best=False):
+    def train(self, stop_event=None, max_no_improvement=50, save_best=True, train_for=171):
         """
             The main method.
             Retrieves the training, validation and testing dataloaders, from get_dataloaders.
             Trains for 171 epochs or until no improvment is reached for x epochs.
             At the end the method outputs the results from the model which preformed best on the validation set during training. 
         """
-        
+        print("starting training")
         f_nm = os.path.join("models","model_" + datetime.now().strftime("%Y%m%d_%H%M%S") + ".pth")
         best_auc = 0
         best_epoch = 0
@@ -114,7 +114,7 @@ class MyModel:
         if self.adjust_weights:
             self._set_class_weights()
 
-        for epoch in range(1, 171):
+        for epoch in range(1, train_for):
             e=epoch
             if stop_event and stop_event.is_set():
                 print("MyModel detected stop_event set in train, breaking loop.")
@@ -126,7 +126,7 @@ class MyModel:
             valid_res = self.test(valid_loader, stop_event=stop_event)
             #print(f'Epoch: {epoch:03d}')
             # print(f'Train acc: {train_auc["acc"]:.4f}, Train AUC: {train_auc["auc"]:.4f}')
-            #print(f'Valid acc: {valid_res["acc"]:.4f}, Valid AUC: {valid_res["auc"]:.4f}')
+            print(f'Valid acc: {valid_res["acc"]:.4f}, Valid AUC: {valid_res["auc"]:.4f}')
             #print()
             if epoch < 10:
                 continue

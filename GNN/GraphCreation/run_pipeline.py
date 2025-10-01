@@ -23,8 +23,9 @@ def profile_thread(target, *args, **kwargs):
         return result
     return wrapped
 
-def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file=['StateFiles/state.parquet'], val_file=['StateFiles/2.parquet'], start_ts=None, end_ts=None, stop_event = threading.Event(), num_limit=None, nodes = None, graph_type=GraphTypes.NodeTree, skip_None=True, max_dist_scalar=8):
+def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_file=['StateFiles/state.parquet'], val_file=['StateFiles/2.parquet'], start_ts=None, end_ts=None, stop_event = threading.Event(), num_limit=None, nodes = None, graph_type=GraphTypes.NodeTree, skip_None=True, max_dist_scalar=8, invalid=[]):
     # Create objects
+    print("creating objects in run pipeline")
     reader = StateFileReader(buffer=reader_output_queue, state_file=state_file, val_file=val_file, skip_None=skip_None)
     builder = GraphBuilder(buffer=reader_output_queue, output_queue=builder_output_queue, graph_type=graph_type)
     unique_run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -33,12 +34,13 @@ def run(reader_output_queue = Queue(), builder_output_queue = Queue(), state_fil
 
     # Create threads
     threads = [
-        threading.Thread(target=profile_thread(reader.read_and_emit), name="StateFileReaderThread", kwargs={"stop_event": stop_event, "num_limit":num_limit, "lim_nodes":nodes, "skip_None":skip_None, "max_dist_scalar":max_dist_scalar, "start_ts":start_ts, "end_ts":end_ts}),
+        threading.Thread(target=profile_thread(reader.read_and_emit), name="StateFileReaderThread", kwargs={"stop_event": stop_event, "num_limit":num_limit, "lim_nodes":nodes, "skip_None":skip_None, "max_dist_scalar":max_dist_scalar, "start_ts":start_ts, "end_ts":end_ts, "invalid":invalid}),
         threading.Thread(target=profile_thread(builder.build_graph), name="GraphBuilderThread", kwargs={"stop_event": stop_event}),
         # threading.Thread(target=storage.run, name="GraphStorageThread"),
     ]
 
     # Start threads
+    print("starting threads")
     for thread in threads:
         thread.start()
 

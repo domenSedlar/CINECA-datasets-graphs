@@ -18,9 +18,15 @@ class StateFileReader:
         self.curr_val = {}
         self.val_gen = {}
         for f in val_file:
-            id = int(f.split('/')[-1].split('.')[0])
+            if "/" in f:
+                id = int(f.split('/')[-1].split('.')[0])
+            else:
+                id = int(f.split('\\')[-1].split('.')[0])
+            id = int(id)
+            # print(id)
             self.val_gen[id] = self._init_val_gen(f, rows_in_mem, skip_None)
-            self.curr_val[id] = next(self.val_gen[id])
+            self.curr_val[id] = None
+            # self.curr_val[id] = next(self.val_gen[id])
 
     def _init_val_gen(self, val_file, rows_in_mem, skip_None):
         pq_file = pq.ParquetFile(val_file)
@@ -38,7 +44,7 @@ class StateFileReader:
         
         return row_generator(pq_file)
     
-    def _next_val(self, id, ts, max_dist_scalar, time_diff_buff=None):
+    def _next_val(self, id, ts, max_dist_scalar, time_diff_buff=None, invalid_ls=[]):
         """
             Return the next available value after the given timestamp `ts`.
             max_dist_scalar ~ The maximum allowed gap between `ts` and the next available timestamp.
@@ -48,8 +54,14 @@ class StateFileReader:
         if isinstance(ts, str):
             ts = datetime.datetime.fromisoformat(ts)
 
+        def invalid(dt):
+            invalid_ls
+            dt = datetime.datetime(dt.year, dt.month, 1)
+
+            return dt in invalid_ls
+
         try:
-            while self.curr_val[id]["timestamp"].as_py() <= ts:
+            while self.curr_val[id] is None or self.curr_val[id]["timestamp"].as_py() <= ts or invalid(self.curr_val[id]["timestamp"].as_py()):
                 self.curr_val[id] = next(self.val_gen[id])
         except StopIteration:
             return None
@@ -66,11 +78,12 @@ class StateFileReader:
 
         return self.curr_val[id]["value"]
 
-    def read_and_emit(self, start_ts=None, end_ts=None, stop_event=None, num_limit=None, lim_nodes=[2], skip_None=True, max_dist_scalar=8, time_diff_buff=None):
+    def read_and_emit(self, start_ts=None, end_ts=None, stop_event=None, num_limit=None, lim_nodes=[2], skip_None=True, max_dist_scalar=8, time_diff_buff=None, invalid=[]):
         """
         Reads the state file line by line and puts each line into the buffer.
         Each line contains a JSON object with node data.
         """
+        print("starting reading")
 
         pq_dataset = ds.dataset(self.state_file)
         s_ids = [str(i) for i in lim_nodes]
@@ -80,7 +93,7 @@ class StateFileReader:
         current_t = None
         b = False
         count = 0
-
+        print("starting for loop")
         for batch in scanner.to_reader():
             if stop_event and stop_event.is_set():
                 print("reader: detected stop_event set, breaking loop.")
@@ -102,7 +115,7 @@ class StateFileReader:
                 if nodes is not None and not (int(nodes[i]) in lim_nodes): # so we can limit to certain nodes
                     continue
 
-                val = self._next_val(node_ids[i], ts, max_dist_scalar, time_diff_buff=time_diff_buff)
+                val = self._next_val(node_ids[i], ts, max_dist_scalar, time_diff_buff=time_diff_buff, invalid_ls=invalid)
                 if val is None and skip_None:
                     continue
 
