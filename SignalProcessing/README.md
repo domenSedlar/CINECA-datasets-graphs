@@ -116,19 +116,19 @@ The tools directory stores a couple of programs used to gather data about the da
 
 *distribution_per_month.py*
 
-Outputs the distribution of node states, for each month/node pair in the csv format.
+- Outputs the distribution of node states, for each month/node pair in the csv format.
 
 
 *eval_diversity.py*
 
-prints the distribution of node states for each node
+- prints the distribution of node states for each node
 
 
 *evaluate_parameters.py*
 
-This program checks how the different parameters affect the change detection.
+- This program checks how the different parameters affect the change detection.
 
 
 *last_month_distribution.py*
 
-Checks what the value distribution is in the last month in the dataset
+- Checks what the value distribution is in the last month in the dataset
